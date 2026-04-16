@@ -128,6 +128,7 @@ function renderView(view) {
     else if (view === 'analytics') renderAnalytics(el);
     else if (view === 'library') renderLibrary(el);
     else if (view === 'reminders') renderReminders(el);
+    else if (view === 'help') renderHelp(el);
 }
 
 // ============ DASHBOARD ============
@@ -185,6 +186,22 @@ function renderDashboard(el) {
                     ? todayPosts.map(p => dashPostItem(p)).join('')
                     : `<div class="empty-state"><span class="empty-state-icon">😴</span>Nothing scheduled for today.<br><a href="#" onclick="openPostModal()" style="color: var(--purple);">Add a post idea</a></div>`
                 }
+
+                ${(() => {
+                    const needsStats = state.posts.filter(p => p.status === 'posted' && !p.analytics?.likes);
+                    return needsStats.length ? `
+                        <div class="dash-section-title mt-16" style="color:var(--orange)">🔴 Log Your Stats (${needsStats.length})</div>
+                        ${needsStats.slice(0,3).map(p => `
+                            <div class="dash-post-item" style="border-color:rgba(252,176,69,0.4)" data-id="${p.id}" onclick="event.stopPropagation();openAnalyticsModal('${p.id}')">
+                                <div class="dash-post-type">${TYPE_ICONS[p.type]||'📝'}</div>
+                                <div class="dash-post-info">
+                                    <div class="dash-post-title">${esc(p.title)}</div>
+                                    <div class="dash-post-meta">Tap to log stats — takes 30 seconds</div>
+                                </div>
+                                <button class="btn btn-ghost btn-sm" style="flex-shrink:0">Log it</button>
+                            </div>`).join('')}
+                    ` : '';
+                })()}
 
                 <div class="dash-section-title mt-16">✅ Ready to Post</div>
                 ${readyPosts.length
@@ -331,9 +348,13 @@ function initDragDrop() {
             if (post && post.status !== newStatus) {
                 post.status = newStatus;
                 if (newStatus === 'posted' && !post.postedDate) post.postedDate = toDateStr(new Date());
-                saveState();
+                sb.from('gramhub_posts').upsert(postToDb(post));
                 renderView('board');
-                showToast(`Moved to ${STATUS_LABELS[newStatus]}`);
+                if (newStatus === 'posted') {
+                    setTimeout(() => openAnalyticsModal(post.id), 200);
+                } else {
+                    showToast(`Moved to ${STATUS_LABELS[newStatus]}`);
+                }
             }
             dragId = null;
         });
@@ -798,57 +819,67 @@ function openAnalyticsModal(id) {
     if (!post) return;
     const a = post.analytics || {};
 
-    const body = `
-        <div style="margin-bottom:14px;font-weight:600;color:var(--text2)">${esc(post.title)}</div>
-        <div class="form-row">
-            <div class="form-group">
-                <label class="form-label">❤️ Likes</label>
-                <input class="form-input" type="number" id="a-likes" min="0" value="${a.likes ?? ''}">
+    const statField = (emoji, label, fieldId, val) => `
+        <div class="quick-stat-field">
+            <div class="quick-stat-label">${emoji} ${label}</div>
+            <div class="quick-stat-row">
+                <button class="quick-adj" onclick="adjustStat('${fieldId}',-1)">−</button>
+                <input class="quick-stat-input" type="number" id="${fieldId}" min="0" value="${val ?? 0}">
+                <button class="quick-adj" onclick="adjustStat('${fieldId}',1)">+</button>
             </div>
-            <div class="form-group">
-                <label class="form-label">💬 Comments</label>
-                <input class="form-input" type="number" id="a-comments" min="0" value="${a.comments ?? ''}">
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label class="form-label">👁️ Reach</label>
-                <input class="form-input" type="number" id="a-reach" min="0" value="${a.reach ?? ''}">
-            </div>
-            <div class="form-group">
-                <label class="form-label">🔖 Saves</label>
-                <input class="form-input" type="number" id="a-saves" min="0" value="${a.saves ?? ''}">
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label class="form-label">↗️ Shares</label>
-                <input class="form-input" type="number" id="a-shares" min="0" value="${a.shares ?? ''}">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Posted Date</label>
-                <input class="form-input" type="date" id="a-date" value="${post.postedDate || toDateStr(new Date())}">
+            <div class="quick-bumps">
+                ${[10,50,100,500].map(n=>`<button class="bump-btn" onclick="bumpStat('${fieldId}',${n})">+${n}</button>`).join('')}
             </div>
         </div>
     `;
 
-    openModal('Log Analytics', body, function() {
+    const body = `
+        <div style="text-align:center;margin-bottom:18px;">
+            <div style="font-size:28px;margin-bottom:6px">🎉</div>
+            <div style="font-weight:700;font-size:15px">${esc(post.title)}</div>
+            <div style="color:var(--text3);font-size:12px;margin-top:4px">Open Instagram, check the post, type what you see.</div>
+        </div>
+        <div class="quick-stats-grid">
+            ${statField('❤️','Likes','a-likes', a.likes)}
+            ${statField('💬','Comments','a-comments', a.comments)}
+            ${statField('👁️','Reach','a-reach', a.reach)}
+        </div>
+        <details style="margin-top:14px">
+            <summary style="cursor:pointer;font-size:12px;color:var(--text3);user-select:none">More stats (optional)</summary>
+            <div class="quick-stats-grid" style="margin-top:12px">
+                ${statField('🔖','Saves','a-saves', a.saves)}
+                ${statField('↗️','Shares','a-shares', a.shares)}
+            </div>
+        </details>
+    `;
+
+    openModal('How\'d it do?', body, function() {
         const idx = state.posts.findIndex(p => p.id === id);
         state.posts[idx].analytics = {
-            likes: parseInt(document.getElementById('a-likes').value) || 0,
+            likes:    parseInt(document.getElementById('a-likes').value)    || 0,
             comments: parseInt(document.getElementById('a-comments').value) || 0,
-            reach: parseInt(document.getElementById('a-reach').value) || 0,
-            saves: parseInt(document.getElementById('a-saves').value) || 0,
-            shares: parseInt(document.getElementById('a-shares').value) || 0,
+            reach:    parseInt(document.getElementById('a-reach').value)    || 0,
+            saves:    parseInt(document.getElementById('a-saves').value)    || 0,
+            shares:   parseInt(document.getElementById('a-shares').value)   || 0,
         };
-        state.posts[idx].postedDate = document.getElementById('a-date').value;
+        state.posts[idx].postedDate = state.posts[idx].postedDate || toDateStr(new Date());
         state.posts[idx].status = 'posted';
         sb.from('gramhub_posts').upsert(postToDb(state.posts[idx]));
         closeModal();
         renderView(currentView);
-        showToast('Analytics saved 📊');
+        showToast('Stats saved 📊 Nice work!');
     }, 'Save Stats');
 }
+
+window.adjustStat = function(id, delta) {
+    const el = document.getElementById(id);
+    if (el) el.value = Math.max(0, (parseInt(el.value) || 0) + delta);
+};
+
+window.bumpStat = function(id, amount) {
+    const el = document.getElementById(id);
+    if (el) el.value = (parseInt(el.value) || 0) + amount;
+};
 
 function openHashtagModal(id = null) {
     const set = id ? state.hashtagSets.find(s => s.id === id) : null;
@@ -955,6 +986,91 @@ function openReminderModal(id = null) {
         renderView('reminders');
         showToast('Reminder set 🔔');
     });
+}
+
+// ============ HELP ============
+function renderHelp(el) {
+    const section = (emoji, title, steps) => `
+        <div class="help-section">
+            <div class="help-section-title">${emoji} ${title}</div>
+            <div class="help-steps">
+                ${steps.map((s, i) => `
+                    <div class="help-step">
+                        <div class="help-step-num">${i + 1}</div>
+                        <div class="help-step-text">${s}</div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+
+    el.innerHTML = `
+        <div class="view-header">
+            <div>
+                <div class="view-title">How To Use This Thing</div>
+                <div class="view-sub">A guide, because apparently we need one.</div>
+            </div>
+        </div>
+
+        <div class="help-intro">
+            <div class="help-intro-icon">👋</div>
+            <div>
+                <div style="font-size:16px;font-weight:700;margin-bottom:6px">Hey Ron. This app exists because you're going to crush it.</div>
+                <div style="color:var(--text2);line-height:1.6">It's not complicated. Six tabs, each one does one thing. Read this once, then go post something. The guide will be here if you forget — which you won't, because you're not an idiot.</div>
+            </div>
+        </div>
+
+        <div class="help-grid">
+            ${section('⚡', 'Dashboard — Your Home Base', [
+                'This is where you start every day. Open the app, look at this page.',
+                'It tells you what\'s scheduled for today. If something is here, <strong>post it.</strong> That\'s literally your only job.',
+                'If you see a red "🔴 Log Your Stats" section — go to Instagram, check that post\'s numbers, and tap it. Takes 30 seconds. Don\'t skip this — it\'s how you learn what works.',
+                'The Pro Tip at the bottom is different every day. Read it. Or don\'t. But the people who read them post better content. Just saying.',
+            ])}
+
+            ${section('📋', 'Content Board — Your Ideas Pipeline', [
+                'Every post idea lives here as a card. Think of it like a to-do list, but for content.',
+                '<strong>💡 Ideas</strong> — brain dump goes here. Half-baked idea at 11pm? Add it. Don\'t overthink it, just capture it.',
+                '<strong>✏️ Drafting</strong> — you\'re working on the caption, picking the photo, figuring out the hashtags.',
+                '<strong>✅ Ready</strong> — done. Caption written, photo selected, scheduled. Waiting to go live.',
+                '<strong>📤 Posted</strong> — it\'s live on Instagram. Drag it here when you post it. The app will immediately ask for your stats. Just check Instagram and fill them in.',
+                'Drag cards left and right to move them. Or click the ✏️ on any card to edit it.',
+            ])}
+
+            ${section('📅', 'Calendar — See The Big Picture', [
+                'Shows all your scheduled posts in a monthly view. If there are big empty patches, that\'s a problem.',
+                'Rule of thumb: you should have something posted 3-4 times a week. Look at your calendar. Is it empty? Then you have work to do.',
+                'Click any day to schedule a post for that day. Click a post on the calendar to edit it.',
+                'Green-ish days with stuff on them = you\'re doing it right. White empty days = someone\'s slacking.',
+            ])}
+
+            ${section('📊', 'Analytics — Is It Working?', [
+                'This page shows charts of your engagement over time. More lines going up = good. Lines going down = change something.',
+                'You only get data here if you actually log your stats after posting. So log your stats. (See a theme here?)',
+                '<strong>Reach</strong> is how many people saw it. <strong>Likes + Comments</strong> is engagement. High reach, low engagement = content isn\'t connecting. Tweak it.',
+                'Use the "Bar chart by post type" to see if Reels outperform photos for your account. Spoiler: they probably do. Post more Reels.',
+            ])}
+
+            ${section('📚', 'Library — Stop Retyping the Same Hashtags', [
+                'Save your hashtag sets here once. Copy them with one click every time you write a post.',
+                'Make a few sets — one for general car content, one for track day content, one for product posts, etc.',
+                'Same for Caption Templates. Got a caption structure that works well? Save it. Tweak it per post. Don\'t start from scratch every time.',
+                'This section exists because retyping #carsofinstagram 200 times a year is a waste of your life.',
+            ])}
+
+            ${section('🔔', 'Reminders — So You Actually Post', [
+                'Set reminders for your posting days and times. The browser will pop up a notification.',
+                'First time you use this, click "Enable Notifications" at the top. If you skip that step, the reminders don\'t work. Don\'t skip that step.',
+                'Suggested schedule if you\'re just starting: Tuesday 6pm, Thursday 6pm, Saturday 11am. Consistent beats perfect.',
+                'The reminder fires even if the app isn\'t open — as long as the browser is running. Keep your browser open. It\'s not a big ask.',
+            ])}
+        </div>
+
+        <div class="help-footer">
+            <div class="help-footer-title">The Only Rule That Actually Matters</div>
+            <div class="help-footer-text">A mediocre post that goes live beats a perfect post that never gets posted. <strong>Every. Single. Time.</strong> Stop waiting until it's perfect. Post it, log the stats, learn, repeat. That's the whole game.</div>
+        </div>
+    `;
 }
 
 // ============ REMINDERS ENGINE ============

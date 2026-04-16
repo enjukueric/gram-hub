@@ -54,6 +54,30 @@ const STATUS_LABELS = { idea: '💡 Ideas', drafting: '✏️ Drafting', ready: 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+// ============ SUPABASE ============
+const SUPABASE_URL = 'https://mzjicrhoyftmzeqqjzbj.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16amljcmhveWZ0bXplcXFqemJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwOTA2MjIsImV4cCI6MjA4OTY2NjYyMn0.AnCmuMZQhvBg_vU5tx4oaNo18eJdieX02d4uawfeEI0';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function postToDb(p) {
+    return {
+        id: p.id, title: p.title, type: p.type, status: p.status,
+        caption: p.caption || null, hashtags: p.hashtags || null,
+        notes: p.notes || null, scheduled_date: p.scheduledDate || null,
+        scheduled_time: p.scheduledTime || null, posted_date: p.postedDate || null,
+        analytics: p.analytics || null, created_at: p.createdAt,
+    };
+}
+
+function postFromDb(p) {
+    return {
+        id: p.id, title: p.title, type: p.type, status: p.status,
+        caption: p.caption, hashtags: p.hashtags, notes: p.notes,
+        scheduledDate: p.scheduled_date, scheduledTime: p.scheduled_time,
+        postedDate: p.posted_date, analytics: p.analytics, createdAt: p.created_at,
+    };
+}
+
 // ============ STATE ============
 let state = { posts: [], hashtagSets: [], captionTemplates: [], reminders: [] };
 let currentView = 'dashboard';
@@ -63,15 +87,17 @@ let analyticsCharts = {};
 let quoteIndex = Math.floor(Math.random() * QUOTES.length);
 let reminderInterval = null;
 
-function loadState() {
-    try {
-        const saved = localStorage.getItem('gramhub_state');
-        if (saved) state = { ...state, ...JSON.parse(saved) };
-    } catch(e) {}
-}
-
-function saveState() {
-    localStorage.setItem('gramhub_state', JSON.stringify(state));
+async function loadState() {
+    const [p, h, c, r] = await Promise.all([
+        sb.from('gramhub_posts').select('*').order('created_at', { ascending: false }),
+        sb.from('gramhub_hashtag_sets').select('*').order('created_at', { ascending: false }),
+        sb.from('gramhub_caption_templates').select('*').order('created_at', { ascending: false }),
+        sb.from('gramhub_reminders').select('*').order('created_at', { ascending: false }),
+    ]);
+    state.posts = (p.data || []).map(postFromDb);
+    state.hashtagSets = h.data || [];
+    state.captionTemplates = c.data || [];
+    state.reminders = (r.data || []).map(rem => ({ ...rem, days: rem.days || [] }));
 }
 
 function genId() {
@@ -316,7 +342,7 @@ function initDragDrop() {
 
 function deletePost(id) {
     state.posts = state.posts.filter(p => p.id !== id);
-    saveState();
+    sb.from('gramhub_posts').delete().eq('id', id);
     renderView(currentView);
     showToast('Post deleted');
 }
@@ -592,14 +618,14 @@ function captionCard(tmpl) {
 
 function deleteHashtag(id) {
     state.hashtagSets = state.hashtagSets.filter(s => s.id !== id);
-    saveState();
+    sb.from('gramhub_hashtag_sets').delete().eq('id', id);
     renderView('library');
     showToast('Deleted');
 }
 
 function deleteCaption(id) {
     state.captionTemplates = state.captionTemplates.filter(t => t.id !== id);
-    saveState();
+    sb.from('gramhub_caption_templates').delete().eq('id', id);
     renderView('library');
     showToast('Deleted');
 }
@@ -646,12 +672,16 @@ function reminderItem(r) {
 
 function toggleReminder(id) {
     const r = state.reminders.find(r => r.id === id);
-    if (r) { r.active = !r.active; saveState(); renderView('reminders'); }
+    if (r) {
+        r.active = !r.active;
+        sb.from('gramhub_reminders').update({ active: r.active }).eq('id', id);
+        renderView('reminders');
+    }
 }
 
 function deleteReminder(id) {
     state.reminders = state.reminders.filter(r => r.id !== id);
-    saveState();
+    sb.from('gramhub_reminders').delete().eq('id', id);
     renderView('reminders');
     showToast('Reminder deleted');
 }
@@ -751,7 +781,7 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
             state.posts.unshift(newPost);
         }
 
-        saveState();
+        sb.from('gramhub_posts').upsert(postToDb(newPost));
         closeModal();
         renderView(currentView);
         showToast(post ? 'Post updated' : 'Idea saved! 💡');
@@ -813,7 +843,7 @@ function openAnalyticsModal(id) {
         };
         state.posts[idx].postedDate = document.getElementById('a-date').value;
         state.posts[idx].status = 'posted';
-        saveState();
+        sb.from('gramhub_posts').upsert(postToDb(state.posts[idx]));
         closeModal();
         renderView(currentView);
         showToast('Analytics saved 📊');
@@ -839,10 +869,12 @@ function openHashtagModal(id = null) {
         if (set) {
             const s = state.hashtagSets.find(s => s.id === id);
             s.name = name; s.hashtags = tags;
+            sb.from('gramhub_hashtag_sets').upsert({ id: s.id, name, hashtags: tags });
         } else {
-            state.hashtagSets.push({ id: genId(), name, hashtags: tags });
+            const newSet = { id: genId(), name, hashtags: tags };
+            state.hashtagSets.push(newSet);
+            sb.from('gramhub_hashtag_sets').insert(newSet);
         }
-        saveState();
         closeModal();
         renderView('library');
         showToast('Saved #️⃣');
@@ -868,10 +900,12 @@ function openCaptionModal(id = null) {
         if (tmpl) {
             const t = state.captionTemplates.find(t => t.id === id);
             t.name = name; t.content = content;
+            sb.from('gramhub_caption_templates').upsert({ id: t.id, name, content });
         } else {
-            state.captionTemplates.push({ id: genId(), name, content });
+            const newTmpl = { id: genId(), name, content };
+            state.captionTemplates.push(newTmpl);
+            sb.from('gramhub_caption_templates').insert(newTmpl);
         }
-        saveState();
         closeModal();
         renderView('library');
         showToast('Saved 📝');
@@ -911,10 +945,12 @@ function openReminderModal(id = null) {
         if (r) {
             const rem = state.reminders.find(rem => rem.id === id);
             rem.label = label; rem.time = time; rem.days = days;
+            sb.from('gramhub_reminders').upsert({ id: rem.id, label, time, days, active: rem.active });
         } else {
-            state.reminders.push({ id: genId(), label, time, days, active: true });
+            const newRem = { id: genId(), label, time, days, active: true };
+            state.reminders.push(newRem);
+            sb.from('gramhub_reminders').insert(newRem);
         }
-        saveState();
         closeModal();
         renderView('reminders');
         showToast('Reminder set 🔔');
@@ -999,8 +1035,13 @@ function showToast(msg) {
 }
 
 // ============ INIT ============
-document.addEventListener('DOMContentLoaded', () => {
-    loadState();
+document.addEventListener('DOMContentLoaded', async () => {
+    // Show loading
+    document.getElementById('main').innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;color:var(--text2)">
+            <div style="font-size:36px">📸</div>
+            <div style="font-size:14px">Loading Ron's data...</div>
+        </div>`;
 
     // Nav
     document.querySelectorAll('.nav-item').forEach(btn => {
@@ -1020,6 +1061,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Reminder check every minute
     setInterval(checkReminders, 60000);
 
-    // Initial render
+    // Load from Supabase then render
+    try {
+        await loadState();
+    } catch(e) {
+        showToast('⚠️ Could not connect to cloud — check internet');
+    }
     navigate('dashboard');
 });

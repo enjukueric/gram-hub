@@ -1007,68 +1007,68 @@ function renderHelp(el) {
     el.innerHTML = `
         <div class="view-header">
             <div>
-                <div class="view-title">How To Use This Thing</div>
-                <div class="view-sub">A guide, because apparently we need one.</div>
+                <div class="view-title">How To Use This Thing, Ron</div>
+                <div class="view-sub">Yes, someone built you an entire app. You're welcome. Now use it.</div>
             </div>
         </div>
 
         <div class="help-intro">
-            <div class="help-intro-icon">👋</div>
+            <div class="help-intro-icon">🤦</div>
             <div>
-                <div style="font-size:16px;font-weight:700;margin-bottom:6px">Hey Ron. This app exists because you're going to crush it.</div>
-                <div style="color:var(--text2);line-height:1.6">It's not complicated. Six tabs, each one does one thing. Read this once, then go post something. The guide will be here if you forget — which you won't, because you're not an idiot.</div>
+                <div style="font-size:16px;font-weight:700;margin-bottom:6px">Okay Ron. Let's go over this one time.</div>
+                <div style="color:var(--text2);line-height:1.6">This app has <strong>6 tabs</strong>. Six. You can count them on one hand and still have a finger left over. There is no reason — <em>zero</em> — to be confused. Read this guide, close it, and go post something. If you come back to this page more than twice, we need to have a different conversation.</div>
             </div>
         </div>
 
         <div class="help-grid">
-            ${section('⚡', 'Dashboard — Your Home Base', [
-                'This is where you start every day. Open the app, look at this page.',
-                'It tells you what\'s scheduled for today. If something is here, <strong>post it.</strong> That\'s literally your only job.',
-                'If you see a red "🔴 Log Your Stats" section — go to Instagram, check that post\'s numbers, and tap it. Takes 30 seconds. Don\'t skip this — it\'s how you learn what works.',
-                'The Pro Tip at the bottom is different every day. Read it. Or don\'t. But the people who read them post better content. Just saying.',
+            ${section('⚡', 'Dashboard — Open This Every Morning', [
+                'Wake up. Make coffee. Open this page. That\'s your new routine. Write it on your hand if you have to.',
+                'See something under "Today\'s Schedule"? <strong>That means post it today.</strong> Not tomorrow. Not when you feel inspired. Today.',
+                'See an orange "🔴 Log Your Stats" section? That means you posted something and then just... walked away without logging the numbers. Go fix that. It takes 30 seconds and it\'s the only way you\'ll ever know if your content is actually working or if you\'re just shouting into the void.',
+                'There\'s a Pro Tip at the bottom. Read it. It\'s free knowledge and you\'re already here.',
             ])}
 
-            ${section('📋', 'Content Board — Your Ideas Pipeline', [
-                'Every post idea lives here as a card. Think of it like a to-do list, but for content.',
-                '<strong>💡 Ideas</strong> — brain dump goes here. Half-baked idea at 11pm? Add it. Don\'t overthink it, just capture it.',
-                '<strong>✏️ Drafting</strong> — you\'re working on the caption, picking the photo, figuring out the hashtags.',
-                '<strong>✅ Ready</strong> — done. Caption written, photo selected, scheduled. Waiting to go live.',
-                '<strong>📤 Posted</strong> — it\'s live on Instagram. Drag it here when you post it. The app will immediately ask for your stats. Just check Instagram and fill them in.',
-                'Drag cards left and right to move them. Or click the ✏️ on any card to edit it.',
+            ${section('📋', 'Content Board — Your Brain, Organized', [
+                'This is where ideas go so they don\'t die in your camera roll or a notes app you\'ll never open again. Every post lives here as a card.',
+                '<strong>💡 Ideas</strong> — dump everything here. Shower thought at 2am? Add it. You saw something cool? Add it. Stop letting good ideas evaporate because you thought you\'d "remember it later." You won\'t. You never do.',
+                '<strong>✏️ Drafting</strong> — you\'re actually working on it. Caption, photo, hashtags. This is where posts go to become real.',
+                '<strong>✅ Ready</strong> — locked, loaded, scheduled. This card is ready to post and you have no excuse not to.',
+                '<strong>📤 Posted</strong> — drag it here the second it goes live. The app will immediately ask you for the stats. Don\'t close the window. Don\'t say "I\'ll do it later." Later never comes. Take 30 seconds right now.',
+                'Drag cards between columns. Click ✏️ to edit. Click 🗑️ to delete. It\'s drag and drop, Ron, not rocket surgery.',
             ])}
 
-            ${section('📅', 'Calendar — See The Big Picture', [
-                'Shows all your scheduled posts in a monthly view. If there are big empty patches, that\'s a problem.',
-                'Rule of thumb: you should have something posted 3-4 times a week. Look at your calendar. Is it empty? Then you have work to do.',
-                'Click any day to schedule a post for that day. Click a post on the calendar to edit it.',
-                'Green-ish days with stuff on them = you\'re doing it right. White empty days = someone\'s slacking.',
+            ${section('📅', 'Calendar — Proof You Have a Plan', [
+                'This shows every scheduled post on a calendar. Take a good long look at it right now. Is it mostly empty? Then you already know what the problem is.',
+                '<strong>3 to 4 posts a week.</strong> That is the minimum. Not 3-4 a month. A week. If your calendar doesn\'t reflect that, you\'re not posting enough and the algorithm will forget you exist. Like that.',
+                'Click any day to add a post to it. Plan ahead. Future Ron will thank present Ron. Future Ron always thanks present Ron when present Ron actually does the work.',
+                'Blank calendar = no plan. No plan = no growth. No growth = the people doubting you were right. Don\'t let them be right.',
             ])}
 
-            ${section('📊', 'Analytics — Is It Working?', [
-                'This page shows charts of your engagement over time. More lines going up = good. Lines going down = change something.',
-                'You only get data here if you actually log your stats after posting. So log your stats. (See a theme here?)',
-                '<strong>Reach</strong> is how many people saw it. <strong>Likes + Comments</strong> is engagement. High reach, low engagement = content isn\'t connecting. Tweak it.',
-                'Use the "Bar chart by post type" to see if Reels outperform photos for your account. Spoiler: they probably do. Post more Reels.',
+            ${section('📊', 'Analytics — The Scoreboard', [
+                'This shows you whether what you\'re doing is working or not. Lines going up = good job. Lines going down = something needs to change. It\'s not complicated.',
+                'Here\'s the catch: <strong>you have to log your stats for any of this to work.</strong> The app can\'t magically know your numbers. Every time you post, you open Instagram, you check the numbers, you type them in. That\'s the deal.',
+                '<strong>Reach</strong> = how many people saw it. <strong>Engagement</strong> = how many people cared. Big reach, no engagement means your content isn\'t landing. Small reach means not enough people are seeing it. Both are fixable once you know which one it is.',
+                'Check the bar chart by post type. If Reels are crushing photos — and they probably are — post more Reels. The data doesn\'t lie, even when your gut does.',
             ])}
 
-            ${section('📚', 'Library — Stop Retyping the Same Hashtags', [
-                'Save your hashtag sets here once. Copy them with one click every time you write a post.',
-                'Make a few sets — one for general car content, one for track day content, one for product posts, etc.',
-                'Same for Caption Templates. Got a caption structure that works well? Save it. Tweak it per post. Don\'t start from scratch every time.',
-                'This section exists because retyping #carsofinstagram 200 times a year is a waste of your life.',
+            ${section('📚', 'Library — Work Smarter, Not Harder', [
+                'You are not going to type your hashtags from scratch every single post. That\'s insane. Save your hashtag sets here once, copy them in one click, done.',
+                'Build 3-4 sets: one for general content, one for track/event stuff, one for product posts. Mix and match. Stop reinventing the wheel every Tuesday night.',
+                'Caption Templates work the same way. Found a caption structure that got good engagement? <strong>Save it here immediately.</strong> Tweak it for each post. Don\'t lose it. Don\'t start from scratch. You\'re not a monk hand-copying manuscripts.',
+                'This tab will save you probably 20 minutes a week. Over a year that\'s like 17 hours. You\'re welcome.',
             ])}
 
-            ${section('🔔', 'Reminders — So You Actually Post', [
-                'Set reminders for your posting days and times. The browser will pop up a notification.',
-                'First time you use this, click "Enable Notifications" at the top. If you skip that step, the reminders don\'t work. Don\'t skip that step.',
-                'Suggested schedule if you\'re just starting: Tuesday 6pm, Thursday 6pm, Saturday 11am. Consistent beats perfect.',
-                'The reminder fires even if the app isn\'t open — as long as the browser is running. Keep your browser open. It\'s not a big ask.',
+            ${section('🔔', 'Reminders — Since Apparently You Need Them', [
+                'Set a reminder for each day you\'re supposed to post. The app will send a browser notification that says "hey, go post something." This is the app doing your job for you. All you have to do is not ignore it.',
+                '<strong>First and only setup step:</strong> click "Enable Notifications" at the top of this page. If you don\'t do this, reminders don\'t work. If you come back to us confused about why your reminders aren\'t working, the first question will be "did you enable notifications?" Don\'t be that person.',
+                'Suggested starting schedule: <strong>Tuesday, Thursday, Saturday.</strong> Pick times you\'re not busy. Stick to them. Consistency is literally more important than quality when you\'re starting out. A decent post on schedule beats a perfect post whenever you feel like it.',
+                'Keep your browser open. The notification fires through the browser. This is not a hard requirement. You probably already have 47 tabs open anyway.',
             ])}
         </div>
 
         <div class="help-footer">
-            <div class="help-footer-title">The Only Rule That Actually Matters</div>
-            <div class="help-footer-text">A mediocre post that goes live beats a perfect post that never gets posted. <strong>Every. Single. Time.</strong> Stop waiting until it's perfect. Post it, log the stats, learn, repeat. That's the whole game.</div>
+            <div class="help-footer-title">The One Thing That Separates People Who Grow From People Who Don't</div>
+            <div class="help-footer-text">They post. Consistently. Even when it's not perfect. Even when they're not feeling it. Even when nobody's watching yet — <em>especially</em> when nobody's watching yet. That's when the habit gets built. The people who are doubting you right now? They're counting on you to quit. <strong>Don't quit. Post the damn thing.</strong></div>
         </div>
     `;
 }

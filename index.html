@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gram Hub — Ron's Command Center</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <aside class="sidebar">
+            <div class="sidebar-inner">
+                <div class="brand">
+                    <div class="brand-logo">G</div>
+                    <div class="brand-text">
+                        <div class="brand-name">Gram Hub</div>
+                        <div class="brand-sub">Ron's Command Center</div>
+                    </div>
+                </div>
+                <nav class="nav">
+                    <button class="nav-item active" data-view="dashboard">
+                        <span class="nav-icon">⚡</span><span>Dashboard</span>
+                    </button>
+                    <button class="nav-item" data-view="board">
+                        <span class="nav-icon">📋</span><span>Content Board</span>
+                    </button>
+                    <button class="nav-item" data-view="calendar">
+                        <span class="nav-icon">📅</span><span>Calendar</span>
+                    </button>
+                    <button class="nav-item" data-view="analytics">
+                        <span class="nav-icon">📊</span><span>Analytics</span>
+                    </button>
+                    <button class="nav-item" data-view="library">
+                        <span class="nav-icon">📚</span><span>Library</span>
+                    </button>
+                    <button class="nav-item" data-view="reminders">
+                        <span class="nav-icon">🔔</span><span>Reminders</span>
+                    </button>
+                </nav>
+                <div class="quote-card">
+                    <div class="quote-mark">"</div>
+                    <div class="quote-text" id="quote-text"></div>
+                    <div class="quote-author" id="quote-author"></div>
+                    <button class="quote-refresh" id="quote-refresh" title="New quote">↻</button>
+                </div>
+            </div>
+        </aside>
+        <main id="main"></main>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <div class="modal-backdrop hidden" id="modal-backdrop">
+        <div class="modal" id="modal">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modal-title"></h2>
+                <button class="modal-close" id="modal-close">✕</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+            <div class="modal-footer" id="modal-footer"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

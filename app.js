@@ -65,7 +65,7 @@ function postToDb(p) {
         caption: p.caption || null, hashtags: p.hashtags || null,
         notes: p.notes || null, scheduled_date: p.scheduledDate || null,
         scheduled_time: p.scheduledTime || null, posted_date: p.postedDate || null,
-        analytics: p.analytics || null, created_at: p.createdAt,
+        analytics: p.analytics || null, tagged_product: p.taggedProduct || null, created_at: p.createdAt,
     };
 }
 
@@ -74,12 +74,29 @@ function postFromDb(p) {
         id: p.id, title: p.title, type: p.type, status: p.status,
         caption: p.caption, hashtags: p.hashtags, notes: p.notes,
         scheduledDate: p.scheduled_date, scheduledTime: p.scheduled_time,
-        postedDate: p.posted_date, analytics: p.analytics, createdAt: p.created_at,
+        postedDate: p.posted_date, analytics: p.analytics, taggedProduct: p.tagged_product,
+        createdAt: p.created_at,
     };
 }
 
 // ============ STATE ============
-let state = { posts: [], hashtagSets: [], captionTemplates: [], reminders: [] };
+let state = { posts: [], hashtagSets: [], captionTemplates: [], reminders: [], products: [] };
+let catalog = null;
+let catalogLoading = false;
+
+async function loadCatalog() {
+    if (catalog) return catalog;
+    if (catalogLoading) return null;
+    catalogLoading = true;
+    try {
+        const res = await fetch('catalog.json');
+        catalog = await res.json();
+    } catch(e) {
+        catalog = [];
+    }
+    catalogLoading = false;
+    return catalog;
+}
 let currentView = 'dashboard';
 let calMonth = new Date().getMonth();
 let calYear = new Date().getFullYear();
@@ -88,16 +105,18 @@ let quoteIndex = Math.floor(Math.random() * QUOTES.length);
 let reminderInterval = null;
 
 async function loadState() {
-    const [p, h, c, r] = await Promise.all([
+    const [p, h, c, r, pr] = await Promise.all([
         sb.from('gramhub_posts').select('*').order('created_at', { ascending: false }),
         sb.from('gramhub_hashtag_sets').select('*').order('created_at', { ascending: false }),
         sb.from('gramhub_caption_templates').select('*').order('created_at', { ascending: false }),
         sb.from('gramhub_reminders').select('*').order('created_at', { ascending: false }),
+        sb.from('gramhub_products').select('*').order('name', { ascending: true }),
     ]);
     state.posts = (p.data || []).map(postFromDb);
     state.hashtagSets = h.data || [];
     state.captionTemplates = c.data || [];
     state.reminders = (r.data || []).map(rem => ({ ...rem, days: rem.days || [] }));
+    state.products = pr.data || [];
 }
 
 function genId() {
@@ -147,6 +166,7 @@ function renderDashboard(el) {
     const avgEngagement = postedPosts.length
         ? Math.round(postedPosts.reduce((s, p) => s + ((p.analytics?.likes || 0) + (p.analytics?.comments || 0)), 0) / postedPosts.length)
         : 0;
+    const shopPosts = state.posts.filter(p => p.taggedProduct?.name);
 
     const tip = TIPS[Math.floor(Math.random() * TIPS.length)];
 
@@ -176,6 +196,11 @@ function renderDashboard(el) {
                 <div class="stat-label">Avg Engagement</div>
                 <div class="stat-value grad">${avgEngagement}</div>
                 <div class="stat-sub">likes + comments</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Shop Posts</div>
+                <div class="stat-value grad">${shopPosts.length}</div>
+                <div class="stat-sub">products tagged</div>
             </div>
         </div>
 
@@ -315,6 +340,7 @@ function postCard(p) {
             ${p.caption ? `<div class="post-card-caption">${esc(p.caption)}</div>` : ''}
             <div class="post-card-footer">
                 <span class="badge badge-${p.type}">${icon} ${p.type}</span>
+                ${p.taggedProduct?.name ? `<span class="badge" style="background:rgba(52,199,89,0.15);color:#34c759">🛍️ ${esc(p.taggedProduct.name)}</span>` : ''}
                 ${p.status === 'posted' ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openAnalyticsModal('${p.id}')">📊 Log stats</button>` : dateStr}
             </div>
         </div>
@@ -504,6 +530,43 @@ function renderAnalytics(el) {
         </div>
     `;
 
+    const shopPosted = posted.filter(p => p.taggedProduct?.name);
+    if (shopPosted.length) {
+        el.innerHTML += `
+        <div class="card" style="margin-top:20px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                <div class="dash-section-title" style="margin:0">🛍️ Shop Post Performance</div>
+                <div style="font-size:12px;color:var(--text3)">Posts with tagged products</div>
+            </div>
+            <table class="analytics-table">
+                <thead><tr>
+                    <th>Product</th><th>Post</th><th>Type</th><th>Date</th>
+                    <th>❤️ Likes</th><th>💬 Comments</th><th>👁️ Reach</th>
+                </tr></thead>
+                <tbody>
+                    ${shopPosted.sort((a,b) => {
+                        const ea = (a.analytics?.likes||0)+(a.analytics?.comments||0);
+                        const eb = (b.analytics?.likes||0)+(b.analytics?.comments||0);
+                        return eb - ea;
+                    }).map(p => `
+                    <tr>
+                        <td style="font-weight:600;color:#34c759">
+                            ${p.taggedProduct.url
+                                ? `<a href="${esc(p.taggedProduct.url)}" target="_blank" style="color:#34c759;text-decoration:none">${esc(p.taggedProduct.name)} ↗</a>`
+                                : esc(p.taggedProduct.name)}
+                        </td>
+                        <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.title)}</td>
+                        <td><span class="badge badge-${p.type}">${TYPE_ICONS[p.type]} ${p.type}</span></td>
+                        <td style="color:var(--text2)">${p.postedDate ? formatDateLabel(p.postedDate) : '—'}</td>
+                        <td class="num-cell">${p.analytics?.likes ?? '—'}</td>
+                        <td class="num-cell">${p.analytics?.comments ?? '—'}</td>
+                        <td class="num-cell">${p.analytics?.reach ?? '—'}</td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
+    }
+
     if (posted.length) {
         renderCharts(posted);
     }
@@ -581,6 +644,21 @@ function renderLibrary(el) {
 
         <div class="lib-section">
             <div class="lib-section-header">
+                <div class="lib-section-title">🛍️ Featured Products</div>
+                <button class="btn btn-primary btn-sm" onclick="openProductModal()">+ Add Product</button>
+            </div>
+            <div class="lib-grid" id="product-grid">
+                ${state.products.length
+                    ? state.products.map(productCard).join('')
+                    : `<div class="empty-state"><span class="empty-state-icon">🛍️</span>Save products you feature often.<br>Pick them quickly when creating posts.</div>`
+                }
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="lib-section">
+            <div class="lib-section-header">
                 <div class="lib-section-title">#️⃣ Hashtag Sets</div>
                 <button class="btn btn-primary btn-sm" onclick="openHashtagModal()">+ New Set</button>
             </div>
@@ -650,6 +728,134 @@ function deleteCaption(id) {
     renderView('library');
     showToast('Deleted');
 }
+
+// ============ PRODUCTS ============
+function productCard(pr) {
+    return `
+        <div class="lib-card">
+            <div class="lib-card-name">${esc(pr.name)}</div>
+            ${pr.sku ? `<div style="font-size:11px;color:var(--text3);margin-bottom:4px">SKU: ${esc(pr.sku)}</div>` : ''}
+            ${pr.url ? `<div class="lib-card-body"><a href="${esc(pr.url)}" target="_blank" style="color:var(--purple);font-size:12px;text-decoration:none">View product ↗</a></div>` : ''}
+            <div class="lib-card-actions">
+                <button class="btn btn-ghost btn-sm" onclick="openProductModal('${pr.id}')">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteProduct('${pr.id}')">✕</button>
+            </div>
+        </div>
+    `;
+}
+
+function openProductModal(id = null) {
+    const pr = id ? state.products.find(p => p.id === id) : null;
+    const body = `
+        <div class="form-group">
+            <label class="form-label">Product Name *</label>
+            <input class="form-input" id="p-name" placeholder="e.g. Project Mu NS brake pads" value="${esc(pr?.name || '')}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Product URL</label>
+            <input class="form-input" id="p-url" placeholder="https://enjukuracing.com/products/..." value="${esc(pr?.url || '')}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">SKU <span style="color:var(--text3);font-weight:400">(optional)</span></label>
+            <input class="form-input" id="p-sku" placeholder="e.g. PM-NS-BF5-F" value="${esc(pr?.sku || '')}">
+        </div>
+    `;
+    openModal(pr ? 'Edit Product' : 'Add Product', body, function() {
+        const name = document.getElementById('p-name').value.trim();
+        const url = document.getElementById('p-url').value.trim();
+        const sku = document.getElementById('p-sku').value.trim();
+        if (!name) { showToast('Product name required'); return; }
+        if (pr) {
+            const existing = state.products.find(p => p.id === id);
+            existing.name = name; existing.url = url; existing.sku = sku;
+            sb.from('gramhub_products').upsert({ id: existing.id, name, url, sku });
+        } else {
+            const newPr = { id: genId(), name, url, sku };
+            state.products.push(newPr);
+            sb.from('gramhub_products').insert(newPr);
+        }
+        closeModal();
+        renderView('library');
+        showToast('Product saved 🛍️');
+    });
+}
+
+function deleteProduct(id) {
+    state.products = state.products.filter(p => p.id !== id);
+    sb.from('gramhub_products').delete().eq('id', id);
+    renderView('library');
+    showToast('Product removed');
+}
+
+window.fillProductFromLibrary = function() {
+    const sel = document.getElementById('f-product-select');
+    if (!sel || !sel.value) return;
+    const pr = state.products.find(p => p.id === sel.value);
+    if (pr) {
+        const nameEl = document.getElementById('f-product-name');
+        const urlEl = document.getElementById('f-product-url');
+        if (nameEl) nameEl.value = pr.name;
+        if (urlEl) urlEl.value = pr.url || '';
+    }
+};
+
+window.initCatalogSearch = async function() {
+    const searchEl = document.getElementById('f-product-search');
+    if (!searchEl) return;
+    if (!catalog) {
+        searchEl.placeholder = 'Loading catalog...';
+        await loadCatalog();
+        searchEl.placeholder = 'Search by SKU or product name...';
+    }
+};
+
+window.searchCatalog = function(query) {
+    const results = document.getElementById('f-catalog-results');
+    if (!results) return;
+    const q = query.trim().toLowerCase();
+    if (!q || !catalog || q.length < 2) { results.style.display = 'none'; return; }
+
+    const matches = [];
+    for (const item of catalog) {
+        if (matches.length >= 8) break;
+        if (item.s.toLowerCase().includes(q) || item.n.toLowerCase().includes(q)) {
+            matches.push(item);
+        }
+    }
+
+    if (!matches.length) { results.style.display = 'none'; return; }
+    results.style.display = 'block';
+    results.innerHTML = matches.map(item => `
+        <div onclick="selectCatalogProduct(${JSON.stringify(item.s)}, ${JSON.stringify(item.n)}, ${JSON.stringify(item.u)})"
+            style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border)"
+            onmouseover="this.style.background='rgba(131,58,180,0.1)'" onmouseout="this.style.background=''">
+            <span style="color:var(--purple);font-weight:600">${esc(item.s)}</span>
+            <span style="color:var(--text2);margin-left:8px">${esc(item.n)}</span>
+        </div>
+    `).join('');
+};
+
+window.selectCatalogProduct = function(sku, name, url) {
+    document.getElementById('f-product-name').value = name;
+    document.getElementById('f-product-url').value = url;
+    document.getElementById('f-product-search').value = name;
+    document.getElementById('f-catalog-results').style.display = 'none';
+    const sel = document.getElementById('f-product-selected');
+    if (sel) {
+        sel.style.display = 'block';
+        sel.innerHTML = `🛍️ <strong>${esc(sku)}</strong> — ${esc(name)} — <a href="${esc(url)}" target="_blank" style="color:#34c759">view ↗</a>
+            <button onclick="clearProductTag()" style="background:none;border:none;color:var(--text3);cursor:pointer;float:right">✕ clear</button>`;
+        sel.style.cssText += ';padding:6px 10px;background:rgba(52,199,89,0.1);border-radius:6px;font-size:12px;color:#34c759;margin-top:6px;';
+    }
+};
+
+window.clearProductTag = function() {
+    document.getElementById('f-product-name').value = '';
+    document.getElementById('f-product-url').value = '';
+    document.getElementById('f-product-search').value = '';
+    const sel = document.getElementById('f-product-selected');
+    if (sel) sel.style.display = 'none';
+};
 
 // ============ REMINDERS ============
 function renderReminders(el) {
@@ -764,6 +970,19 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
             <label class="form-label">Image / Video Notes</label>
             <input class="form-input" id="f-notes" placeholder="e.g. Use the photo from Sat morning track day, front angle" value="${esc(post?.notes || '')}">
         </div>
+        <div class="form-group">
+            <label class="form-label">🛍️ Tagged Product <span style="color:var(--text3);font-weight:400">(optional — for shoppable posts)</span></label>
+            <input class="form-input" id="f-product-search" placeholder="Search by SKU or product name..." autocomplete="off"
+                value="${esc(post?.taggedProduct?.name || '')}"
+                oninput="searchCatalog(this.value)" onfocus="initCatalogSearch()">
+            <div id="f-catalog-results" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;margin-top:4px;font-size:13px"></div>
+            <input type="hidden" id="f-product-name" value="${esc(post?.taggedProduct?.name || '')}">
+            <input type="hidden" id="f-product-url" value="${esc(post?.taggedProduct?.url || '')}">
+            ${post?.taggedProduct?.name ? `<div id="f-product-selected" style="margin-top:6px;padding:6px 10px;background:rgba(52,199,89,0.1);border-radius:6px;font-size:12px;color:#34c759">
+                🛍️ ${esc(post.taggedProduct.name)} — <a href="${esc(post.taggedProduct.url)}" target="_blank" style="color:#34c759">view ↗</a>
+                <button onclick="clearProductTag()" style="background:none;border:none;color:var(--text3);cursor:pointer;float:right">✕ clear</button>
+            </div>` : '<div id="f-product-selected" style="display:none"></div>'}
+        </div>
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label">Schedule Date</label>
@@ -780,6 +999,8 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
         const titleVal = document.getElementById('f-title').value.trim();
         if (!titleVal) { showToast('Title is required'); return; }
 
+        const productName = (document.getElementById('f-product-name')?.value || '').trim();
+        const productUrl = (document.getElementById('f-product-url')?.value || '').trim();
         const newPost = {
             id: post?.id || genId(),
             title: titleVal,
@@ -791,6 +1012,7 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
             scheduledDate: document.getElementById('f-date').value,
             scheduledTime: document.getElementById('f-time').value,
             analytics: post?.analytics || null,
+            taggedProduct: productName ? { name: productName, url: productUrl } : null,
             postedDate: post?.postedDate || (document.getElementById('f-status').value === 'posted' ? toDateStr(new Date()) : null),
             createdAt: post?.createdAt || new Date().toISOString(),
         };
@@ -1016,7 +1238,7 @@ function renderHelp(el) {
             <div class="help-intro-icon">🤦</div>
             <div>
                 <div style="font-size:16px;font-weight:700;margin-bottom:6px">Okay Ron. Let's go over this one time.</div>
-                <div style="color:var(--text2);line-height:1.6">This app has <strong>6 tabs</strong>. Six. You can count them on one hand and still have a finger left over. There is no reason — <em>zero</em> — to be confused. Read this guide, close it, and go post something. If you come back to this page more than twice, we need to have a different conversation.</div>
+                <div style="color:var(--text2);line-height:1.6">This app has <strong>7 tabs</strong>. Seven. If that number is overwhelming to you we need to talk. Read this guide, close it, and go post something. If you come back to this page more than twice, we need to have a different conversation.</div>
             </div>
         </div>
 
@@ -1063,6 +1285,15 @@ function renderHelp(el) {
                 '<strong>First and only setup step:</strong> click "Enable Notifications" at the top of this page. If you don\'t do this, reminders don\'t work. If you come back to us confused about why your reminders aren\'t working, the first question will be "did you enable notifications?" Don\'t be that person.',
                 'Suggested starting schedule: <strong>Tuesday, Thursday, Saturday.</strong> Pick times you\'re not busy. Stick to them. Consistency is literally more important than quality when you\'re starting out. A decent post on schedule beats a perfect post whenever you feel like it.',
                 'Keep your browser open. The notification fires through the browser. This is not a hard requirement. You probably already have 47 tabs open anyway.',
+            ])}
+
+            ${section('🛍️', 'Shop Posts — The Whole Point of This Exercise', [
+                'The store is now connected to Instagram. That means when you post a product, people can tap it and buy it <em>right there</em>. This is literally free money sitting on the table and all you have to do is not screw it up.',
+                'When you create or edit a post, scroll down and you\'ll see a <strong>Tagged Product</strong> field. Type the product name and paste the URL from the store. That\'s it. That\'s the whole thing. You\'re done.',
+                'Go to the <strong>Library tab first</strong> and add the products you plan to feature regularly. Name, URL, SKU if you know it. Save them there <em>once</em>. Then when you\'re creating a post, there\'s a dropdown — pick the product in two seconds instead of hunting down the URL every single time like an animal.',
+                'Every post with a product tagged shows a green 🛍️ badge on the card. If you\'re looking at the board and none of your cards have that badge, you\'re leaving sales on the table. Fix that.',
+                'Check the <strong>Analytics tab</strong> — there\'s a "Shop Post Performance" table at the bottom. It ranks your product posts by engagement. The one at the top? Post more content like that. The one at the bottom? Figure out why it flopped or stop featuring that product. The data tells you what to do. Read the data.',
+                'This is the part where most people just... keep posting pretty pictures and wondering why Instagram isn\'t making them money. You now have a tool that tracks exactly which products people respond to. Use it or don\'t, but don\'t come back saying Instagram doesn\'t work.',
             ])}
         </div>
 

@@ -1096,14 +1096,7 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
             status: document.getElementById('f-status').value,
             caption: document.getElementById('f-caption').value.trim(),
             hashtags: document.getElementById('f-hashtags').value.trim(),
-            notes: document.getElementById('f-type').value === 'reel'
-                ? JSON.stringify({
-                    shots: document.getElementById('f-shots')?.value?.trim() || '',
-                    audio: document.getElementById('f-audio')?.value?.trim() || '',
-                    edit:  document.getElementById('f-edit-notes')?.value?.trim() || '',
-                    broll: document.getElementById('f-broll')?.value?.trim() || '',
-                  })
-                : document.getElementById('f-notes').value.trim(),
+            notes: getPostNotesValue(),
             scheduledDate: document.getElementById('f-date').value,
             scheduledTime: document.getElementById('f-time').value,
             analytics: post?.analytics || null,
@@ -1125,6 +1118,19 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
         showToast(post ? 'Post updated' : 'Idea saved! 💡');
     });
 }
+
+window.getPostNotesValue = function() {
+    const type = document.getElementById('f-type') ? document.getElementById('f-type').value : '';
+    if (type === 'reel') {
+        return JSON.stringify({
+            shots: (document.getElementById('f-shots') || {value:''}).value.trim(),
+            audio: (document.getElementById('f-audio') || {value:''}).value.trim(),
+            edit:  (document.getElementById('f-edit-notes') || {value:''}).value.trim(),
+            broll: (document.getElementById('f-broll') || {value:''}).value.trim(),
+        });
+    }
+    return (document.getElementById('f-notes') || {value:''}).value.trim();
+};
 
 window.toggleReelNotes = function(type) {
     const reelEl = document.getElementById('f-reel-notes');

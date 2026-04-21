@@ -337,9 +337,22 @@ function renderBoard(el) {
     initDragDrop();
 }
 
+function parseReelNotes(notes) {
+    if (!notes) return {};
+    try { const p = JSON.parse(notes); return typeof p === 'object' ? p : {}; } catch(e) { return { shots: notes }; }
+}
+
 function postCard(p) {
     const icon = TYPE_ICONS[p.type] || '📝';
     const dateStr = p.scheduledDate ? `<span class="post-date">${formatDateLabel(p.scheduledDate)}</span>` : '';
+    const isReel = p.type === 'reel';
+    const reelNotes = isReel ? parseReelNotes(p.notes) : {};
+    const reelPreview = isReel && (reelNotes.shots || reelNotes.audio) ? `
+        <div class="post-card-reel-notes">
+            ${reelNotes.shots ? `<div class="reel-note-row">🎬 <span>${esc(reelNotes.shots.slice(0,80))}${reelNotes.shots.length>80?'…':''}</span></div>` : ''}
+            ${reelNotes.audio ? `<div class="reel-note-row">🎵 <span>${esc(reelNotes.audio)}</span></div>` : ''}
+        </div>` : '';
+    const hasActions = p.caption || p.hashtags || p.slides?.length;
     return `
         <div class="post-card" draggable="true" data-id="${p.id}">
             <div class="post-card-top">
@@ -349,7 +362,14 @@ function postCard(p) {
                     <button class="post-card-btn" onclick="event.stopPropagation();deletePost('${p.id}')" title="Delete">🗑️</button>
                 </div>
             </div>
-            ${p.caption ? `<div class="post-card-caption">${esc(p.caption)}</div>` : ''}
+            ${p.caption ? `<div class="post-card-caption">${esc(p.caption.slice(0,100))}${p.caption.length>100?'…':''}</div>` : ''}
+            ${reelPreview}
+            ${hasActions ? `
+            <div class="post-card-copy-bar">
+                ${p.caption ? `<button class="copy-btn" onclick="event.stopPropagation();copyToClipboard(${JSON.stringify(p.caption)});showToast('Caption copied 📋')" title="Copy caption">📋 Caption</button>` : ''}
+                ${p.hashtags ? `<button class="copy-btn" onclick="event.stopPropagation();copyToClipboard(${JSON.stringify(p.hashtags)});showToast('Hashtags copied')" title="Copy hashtags">🏷️ Tags</button>` : ''}
+                ${p.slides?.length ? `<button class="copy-btn" onclick="event.stopPropagation();downloadPostImage(${JSON.stringify(p.slides[0])})" title="Download image">⬇️ Image</button>` : ''}
+            </div>` : ''}
             <div class="post-card-footer">
                 <span class="badge badge-${p.type}">${icon} ${p.type}</span>
                 ${p.taggedProduct?.name ? `<span class="badge" style="background:rgba(52,199,89,0.15);color:#34c759">🛍️ ${esc(p.taggedProduct.name)}</span>` : ''}
@@ -358,6 +378,16 @@ function postCard(p) {
         </div>
     `;
 }
+
+window.downloadPostImage = function(url) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'post-image.jpg';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 100);
+};
 
 function initDragDrop() {
     let dragId = null;
@@ -969,6 +999,9 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
     const title = post ? 'Edit Post' : 'New Post Idea';
     const types = ['photo','reel','story','carousel'];
     const statuses = ['idea','drafting','ready','posted'];
+    const isReel = (post?.type || 'photo') === 'reel';
+    const rn = isReel ? parseReelNotes(post?.notes) : {};
+    const generalNotes = !isReel ? (post?.notes || '') : '';
 
     const hashtagOptions = state.hashtagSets.length
         ? `<div class="form-hint" style="margin-top:4px">Quick insert: ${state.hashtagSets.map(s => `<a href="#" style="color:var(--purple);margin-right:6px" onclick="event.preventDefault();insertHashtags('${esc(s.hashtags)}')">${esc(s.name)}</a>`).join('')}</div>`
@@ -982,7 +1015,7 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label">Post Type</label>
-                <select class="form-select" id="f-type">
+                <select class="form-select" id="f-type" onchange="toggleReelNotes(this.value)">
                     ${types.map(t => `<option value="${t}" ${(post?.type||'photo')===t?'selected':''}>${TYPE_ICONS[t]} ${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('')}
                 </select>
             </div>
@@ -1002,9 +1035,28 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
             <textarea class="form-textarea" id="f-hashtags" style="min-height:60px" placeholder="#yourhashtags #here">${esc(post?.hashtags || '')}</textarea>
             ${hashtagOptions}
         </div>
-        <div class="form-group">
-            <label class="form-label">Image / Video Notes</label>
-            <input class="form-input" id="f-notes" placeholder="e.g. Use the photo from Sat morning track day, front angle" value="${esc(post?.notes || '')}">
+        <div class="form-group" id="f-notes-wrap">
+            <label class="form-label">Image / Content Notes</label>
+            <textarea class="form-textarea" id="f-notes" placeholder="Which photo to use, references, reminders..." style="min-height:60px">${esc(generalNotes)}</textarea>
+        </div>
+        <div id="f-reel-notes" style="display:${isReel ? 'block' : 'none'}">
+            <div class="reel-notes-header">🎬 Reel Shot Planner</div>
+            <div class="form-group">
+                <label class="form-label">Shot List</label>
+                <textarea class="form-textarea" id="f-shots" placeholder="Every shot you need to capture — wide, close-up, action, b-roll..." style="min-height:80px">${esc(rn.shots||'')}</textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Audio / Sound</label>
+                <input class="form-input" id="f-audio" placeholder="Trending sound name, original audio, voiceover idea..." value="${esc(rn.audio||'')}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Editing Notes</label>
+                <textarea class="form-textarea" id="f-edit-notes" placeholder="Hook idea, pacing, transitions, effects, target length..." style="min-height:60px">${esc(rn.edit||'')}</textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">B-Roll / Extra Shots</label>
+                <input class="form-input" id="f-broll" placeholder="Supporting footage — shop environment, tools, team, atmosphere..." value="${esc(rn.broll||'')}">
+            </div>
         </div>
         <div class="form-group">
             <label class="form-label">🛍️ Tagged Product <span style="color:var(--text3);font-weight:400">(optional — for shoppable posts)</span></label>
@@ -1044,7 +1096,14 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
             status: document.getElementById('f-status').value,
             caption: document.getElementById('f-caption').value.trim(),
             hashtags: document.getElementById('f-hashtags').value.trim(),
-            notes: document.getElementById('f-notes').value.trim(),
+            notes: document.getElementById('f-type').value === 'reel'
+                ? JSON.stringify({
+                    shots: document.getElementById('f-shots')?.value?.trim() || '',
+                    audio: document.getElementById('f-audio')?.value?.trim() || '',
+                    edit:  document.getElementById('f-edit-notes')?.value?.trim() || '',
+                    broll: document.getElementById('f-broll')?.value?.trim() || '',
+                  })
+                : document.getElementById('f-notes').value.trim(),
             scheduledDate: document.getElementById('f-date').value,
             scheduledTime: document.getElementById('f-time').value,
             analytics: post?.analytics || null,
@@ -1066,6 +1125,14 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
         showToast(post ? 'Post updated' : 'Idea saved! 💡');
     });
 }
+
+window.toggleReelNotes = function(type) {
+    const reelEl = document.getElementById('f-reel-notes');
+    const notesEl = document.getElementById('f-notes-wrap');
+    if (!reelEl) return;
+    reelEl.style.display = type === 'reel' ? 'block' : 'none';
+    if (notesEl) notesEl.style.display = type === 'reel' ? 'none' : 'block';
+};
 
 window.insertHashtags = function(tags) {
     const el = document.getElementById('f-hashtags');
@@ -1600,7 +1667,7 @@ function renderHelp(el) {
             <div class="help-intro-icon">🤦</div>
             <div>
                 <div style="font-size:16px;font-weight:700;margin-bottom:6px">Okay Ron. Let's go over this one time.</div>
-                <div style="color:var(--text2);line-height:1.6">This app has <strong>9 tabs</strong>. Nine. It has been updated since the last time you read this, so yes, you actually need to read it again. Read it once, close it, go post something. If you come back here more than twice we need to have a different conversation.</div>
+                <div style="color:var(--text2);line-height:1.6">This app has <strong>9 tabs</strong>. Nine. And it keeps getting better. It has been updated since the last time you read this, so yes, you actually need to read it again. Read it once, close it, go post something. If you come back here more than twice we need to have a different conversation.</div>
             </div>
         </div>
 
@@ -1674,6 +1741,25 @@ function renderHelp(el) {
                 'Go to the <strong>Reminders tab</strong> and create your posting schedule. Set a reminder for each day you\'re supposed to post — Tuesday at 10am, Thursday at 6pm, Saturday at noon, whatever your schedule is. Give each one a label so the email tells you what to do: "Time to post your product post" or "Reel day — no excuses."',
                 'When the email shows up in your inbox, that\'s your cue. Open Instagram. Post. Log the stats. Done. The entire workflow is: receive email → post → log stats → go back to your life. It takes 10 minutes. You have 10 minutes.',
                 '<strong>If you\'re ignoring the reminder emails, that\'s a you problem, not a tech problem.</strong> The system is working. You\'re the variable. Fix the variable.',
+            ])}
+
+            ${section('📋', 'Ready to Post — Everything You Need, One Click Away', [
+                'Every post card now has three buttons at the bottom. They are not decorative. Use them.',
+                '<strong>📋 Caption</strong> — copies your entire caption to the clipboard. Open Instagram. Paste. Done. You don\'t have to type it again, you don\'t have to find the note you wrote it in, you don\'t have to remember it. It\'s right there. One click.',
+                '<strong>🏷️ Tags</strong> — copies all your hashtags in one shot. Paste them at the end of your caption or drop them in the first comment. Either works. Just stop typing them from scratch every time like you\'re being punished.',
+                '<strong>⬇️ Image</strong> — downloads the image you saved to this post. If it opens in a new tab instead of downloading, right-click and save it. Two seconds. Now you have the exact image ready to upload to Instagram without hunting through your camera roll.',
+                'The workflow is now: open GramHub → find the post that\'s scheduled for today → click Caption, click Tags, click Image → open Instagram → paste caption, paste tags, upload image → post. That\'s it. That is the entire process. If you can do that consistently, you will not miss a post.',
+                'For Reels, there\'s no image to download because you\'re shooting the video yourself. But your caption and hashtags are still one click each. Shoot the video, open GramHub, copy the text, post. Simple.',
+            ])}
+
+            ${section('🎬', 'Reels — The Shot Planner Is Your New Best Friend', [
+                'Reels get three times the reach of photos. Read that again. <strong>Three times.</strong> If you\'re not making Reels, you\'re choosing to reach fewer people. That\'s a choice you can make, but now you know you\'re making it.',
+                'When you create a post and set the type to <strong>Reel</strong>, the notes section transforms into a full shot planner. Four fields. Fill them out before you ever pick up a camera.',
+                '<strong>Shot List</strong> — every single shot you need. Wide angle of the engine bay. Close-up of the part being installed. Someone\'s reaction. The finished car. Write it all down before you start filming. If it\'s not on the list, you\'ll forget to shoot it and you\'ll be standing there mid-edit realizing you don\'t have the shot you needed.',
+                '<strong>Audio / Sound</strong> — what are you using? A trending sound you found on Instagram? Original audio from the shop? A voiceover you\'re going to record? Decide now and write it here. "I\'ll figure it out during editing" is how you spend two hours scrolling audio instead of posting.',
+                '<strong>Editing Notes</strong> — how do you want it to feel? Fast cuts? Slow and satisfying? Text overlays? A hook in the first two seconds that stops people from scrolling? Write your vision down before you sit down to edit. Your future self will thank you.',
+                '<strong>B-Roll / Extra Shots</strong> — the supporting footage that makes a Reel feel real and not just a product photo with music. Shop environment. Tools on the bench. Team working. Atmosphere. These shots are the difference between a Reel that looks professional and one that looks like a slideshow.',
+                'All of this saves to the post automatically. Open it a week later and everything you planned is still there. No more "what was I thinking when I wrote this" — you wrote it down.',
             ])}
 
             ${section('🛍️', 'Shop Posts — The Whole Point of This Exercise', [

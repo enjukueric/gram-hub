@@ -980,17 +980,21 @@ function deleteReminder(id) {
 }
 
 // ============ MODALS ============
+let _modalSaveCallback = null;
+
 function openModal(title, bodyHtml, onSave, saveLabel = 'Save') {
+    _modalSaveCallback = onSave;
     document.getElementById('modal-title').textContent = title;
     document.getElementById('modal-body').innerHTML = bodyHtml;
     document.getElementById('modal-footer').innerHTML = `
         <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="(${onSave.toString()})()">💾 ${saveLabel}</button>
+        <button class="btn btn-primary" onclick="if(_modalSaveCallback) _modalSaveCallback()">💾 ${saveLabel}</button>
     `;
     document.getElementById('modal-backdrop').classList.remove('hidden');
 }
 
 function closeModal() {
+    _modalSaveCallback = null;
     document.getElementById('modal-backdrop').classList.add('hidden');
 }
 

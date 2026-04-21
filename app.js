@@ -1600,7 +1600,7 @@ function renderHelp(el) {
             <div class="help-intro-icon">🤦</div>
             <div>
                 <div style="font-size:16px;font-weight:700;margin-bottom:6px">Okay Ron. Let's go over this one time.</div>
-                <div style="color:var(--text2);line-height:1.6">This app has <strong>7 tabs</strong>. Seven. If that number is overwhelming to you we need to talk. Read this guide, close it, and go post something. If you come back to this page more than twice, we need to have a different conversation.</div>
+                <div style="color:var(--text2);line-height:1.6">This app has <strong>9 tabs</strong>. Nine. It has been updated since the last time you read this, so yes, you actually need to read it again. Read it once, close it, go post something. If you come back here more than twice we need to have a different conversation.</div>
             </div>
         </div>
 
@@ -1647,6 +1647,33 @@ function renderHelp(el) {
                 '<strong>First and only setup step:</strong> click "Enable Notifications" at the top of this page. If you don\'t do this, reminders don\'t work. If you come back to us confused about why your reminders aren\'t working, the first question will be "did you enable notifications?" Don\'t be that person.',
                 'Suggested starting schedule: <strong>Tuesday, Thursday, Saturday.</strong> Pick times you\'re not busy. Stick to them. Consistency is literally more important than quality when you\'re starting out. A decent post on schedule beats a perfect post whenever you feel like it.',
                 'Keep your browser open. The notification fires through the browser. This is not a hard requirement. You probably already have 47 tabs open anyway.',
+            ])}
+
+            ${section('🎨', 'Studio — Stop Copying and Pasting Like It\'s 2009', [
+                'You no longer need a spreadsheet, a Google Doc, a Gemini tab, a separate notes app, and a prayer just to put together one post. Everything you need is right here. You\'re welcome.',
+                '<strong>Step one: search for the product.</strong> Type the name or SKU in the Product Search box. Click it. The image and description pull in automatically. That\'s it. No copy-pasting from the website. No opening seventeen tabs. One search. Done.',
+                '<strong>Step two: add your images.</strong> Drag photos straight from your phone or computer into the upload box. Or click it to browse. Or paste a URL if you already have one. You can add multiple — the app will automatically treat it as a carousel. The preview on the right updates in real time so you can see exactly how it\'ll look before you commit to anything.',
+                '<strong>Step three: write the caption.</strong> Watch the preview on the right as you type. That\'s what it\'s going to look like when someone opens Instagram. If it looks bad on the preview, it\'s going to look bad on Instagram. Fix it before you post it, not after.',
+                'Add your hashtags in the Hashtags field. Use your saved sets from the Library tab. That\'s what they\'re there for. Stop typing them from scratch every time.',
+                'When it looks good, hit <strong>Save to Board.</strong> Pick a date if you know when you\'re posting it. Pick "Ready" if it\'s done. Pick "Drafting" if you\'re still working on it. Then go find the post on the Content Board and move it through the pipeline like a normal person.',
+                'The Studio is where ideas become real posts. Use it every time. Not just when you feel like it — every time. The goal is to never post something you haven\'t previewed here first.',
+            ])}
+
+            ${section('🗓️', '60-Day Planner — The Mirror You\'ve Been Avoiding', [
+                'Open this tab. Look at it. Really look at it. That\'s your posting plan — or more accurately, that\'s the gaping void where your posting plan should be. Every gray square is a day you\'ve left empty. Every gray square is a missed opportunity. Count them. It\'s fine, we\'ll wait.',
+                '<strong>Color guide:</strong> Gray = nothing scheduled, which is bad. Purple outline = you have an idea for that day, which is a start but an idea isn\'t a post. Solid purple = something is scheduled and ready to go, which is what we\'re aiming for. Green = posted. Green is good. More green.',
+                'Your goal is <strong>3 to 4 covered days per week</strong> for the next 60 days. Look at the coverage number at the top. If it\'s under 25 you need to spend the next hour in Studio building posts. Not later. Now. Seriously, stop reading this and go.',
+                'Click any empty day to immediately create a post for that date. The date pre-fills automatically. Pick a product, add an image, write a caption, save. Repeat until your calendar doesn\'t look like a parking lot at 6am.',
+                'The point of planning 60 days out isn\'t perfection — you\'ll swap things around, life happens, whatever. The point is that you always have something ready to post so you never open Instagram and think "ugh I don\'t have anything today" and then just... don\'t post. That thought has cost you more followers than bad content ever has.',
+                '<strong>One non-negotiable:</strong> before you close this app for the day, make sure the next 7 days have something in them. Just 7 days. That\'s all. Do that every day and you will never miss a post again.',
+            ])}
+
+            ${section('🔔', 'Reminders — They Come to You Now. No More Excuses.', [
+                'The reminders got an upgrade. They used to require you to have the browser tab open, which apparently was too much to ask. So now they send you an email. At the exact time you set. On the days you set. Even if you\'re asleep. Even if your laptop is closed. Even if you\'ve completely forgotten this app exists.',
+                '<strong>Setup is already done.</strong> Your email is in the system. The server checks every single minute whether you have a reminder due. If you do, it sends the email. You don\'t have to do anything except not ignore it when it arrives.',
+                'Go to the <strong>Reminders tab</strong> and create your posting schedule. Set a reminder for each day you\'re supposed to post — Tuesday at 10am, Thursday at 6pm, Saturday at noon, whatever your schedule is. Give each one a label so the email tells you what to do: "Time to post your product post" or "Reel day — no excuses."',
+                'When the email shows up in your inbox, that\'s your cue. Open Instagram. Post. Log the stats. Done. The entire workflow is: receive email → post → log stats → go back to your life. It takes 10 minutes. You have 10 minutes.',
+                '<strong>If you\'re ignoring the reminder emails, that\'s a you problem, not a tech problem.</strong> The system is working. You\'re the variable. Fix the variable.',
             ])}
 
             ${section('🛍️', 'Shop Posts — The Whole Point of This Exercise', [

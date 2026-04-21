@@ -851,30 +851,37 @@ window.initCatalogSearch = async function() {
     }
 };
 
+let _postMatches = [];
+
 window.searchCatalog = function(query) {
     const results = document.getElementById('f-catalog-results');
     if (!results) return;
     const q = query.trim().toLowerCase();
     if (!q || !catalog || q.length < 2) { results.style.display = 'none'; return; }
 
-    const matches = [];
+    _postMatches = [];
     for (const item of catalog) {
-        if (matches.length >= 8) break;
+        if (_postMatches.length >= 8) break;
         if (item.s.toLowerCase().includes(q) || item.n.toLowerCase().includes(q)) {
-            matches.push(item);
+            _postMatches.push(item);
         }
     }
 
-    if (!matches.length) { results.style.display = 'none'; return; }
+    if (!_postMatches.length) { results.style.display = 'none'; return; }
     results.style.display = 'block';
-    results.innerHTML = matches.map(item => `
-        <div onclick="selectCatalogProduct(${JSON.stringify(item.s)}, ${JSON.stringify(item.n)}, ${JSON.stringify(item.u)})"
+    results.innerHTML = _postMatches.map((item, i) => `
+        <div onclick="selectCatalogProductByIndex(${i})"
             style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border)"
             onmouseover="this.style.background='rgba(131,58,180,0.1)'" onmouseout="this.style.background=''">
             <span style="color:var(--purple);font-weight:600">${esc(item.s)}</span>
             <span style="color:var(--text2);margin-left:8px">${esc(item.n)}</span>
         </div>
     `).join('');
+};
+
+window.selectCatalogProductByIndex = function(i) {
+    const item = _postMatches[i];
+    if (item) selectCatalogProduct(item.s, item.n, item.u);
 };
 
 window.selectCatalogProduct = function(sku, name, url) {
@@ -1427,26 +1434,33 @@ function renderStudio(el) {
     `;
 }
 
+let _studioMatches = [];
+
 window.studioSearchCatalog = function(query) {
     const results = document.getElementById('st-catalog-results');
     if (!results) return;
     const q = query.trim().toLowerCase();
     if (!q || !catalog || q.length < 2) { results.style.display = 'none'; return; }
-    const matches = [];
+    _studioMatches = [];
     for (const item of catalog) {
-        if (matches.length >= 8) break;
-        if (item.s.toLowerCase().includes(q) || item.n.toLowerCase().includes(q)) matches.push(item);
+        if (_studioMatches.length >= 8) break;
+        if (item.s.toLowerCase().includes(q) || item.n.toLowerCase().includes(q)) _studioMatches.push(item);
     }
-    if (!matches.length) { results.style.display = 'none'; return; }
+    if (!_studioMatches.length) { results.style.display = 'none'; return; }
     results.style.display = 'block';
-    results.innerHTML = matches.map(item => `
-        <div onclick="studioSelectProduct(${JSON.stringify(item.s)},${JSON.stringify(item.n)},${JSON.stringify(item.u)})"
+    results.innerHTML = _studioMatches.map((item, i) => `
+        <div onclick="studioSelectProductByIndex(${i})"
             style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border)"
             onmouseover="this.style.background='rgba(131,58,180,0.1)'" onmouseout="this.style.background=''">
             <span style="color:var(--purple);font-weight:600">${esc(item.s)}</span>
             <span style="color:var(--text2);margin-left:8px">${esc(item.n)}</span>
         </div>
     `).join('');
+};
+
+window.studioSelectProductByIndex = function(i) {
+    const item = _studioMatches[i];
+    if (item) studioSelectProduct(item.s, item.n, item.u);
 };
 
 window.studioSelectProduct = async function(sku, name, url) {

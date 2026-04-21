@@ -1188,3 +1188,159 @@ main {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+/* ============ STUDIO ============ */
+.studio-layout {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
+.studio-panel {
+    flex: 1;
+    min-width: 0;
+}
+.studio-preview-panel {
+    width: 340px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 20px;
+}
+.studio-upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+.studio-upload-zone:hover, .studio-upload-zone.drag-over {
+    border-color: var(--purple);
+    background: rgba(131, 58, 180, 0.06);
+}
+
+/* Instagram phone frame */
+.ig-phone {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+.ig-mockup {
+    background: #000;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+}
+.ig-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+}
+.ig-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff;
+    flex-shrink: 0;
+}
+.ig-username { font-weight: 600; font-size: 13px; flex: 1; }
+.ig-more { color: #aaa; font-size: 16px; letter-spacing: 1px; cursor: pointer; }
+.ig-image-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    background: #111;
+    overflow: hidden;
+}
+.ig-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ig-placeholder {
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; color: #555; font-size: 12px;
+}
+.ig-carousel-dots {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 4px;
+}
+.ig-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(255,255,255,0.4); cursor: pointer; transition: background 0.2s;
+}
+.ig-dot.active { background: #3897f0; }
+.ig-carousel-btn {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    background: rgba(255,255,255,0.85); border: none; border-radius: 50%;
+    width: 28px; height: 28px; font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; line-height: 1;
+    color: #000;
+}
+.ig-carousel-btn:disabled { opacity: 0.3; cursor: default; }
+.ig-carousel-prev { left: 8px; }
+.ig-carousel-next { right: 8px; }
+.ig-actions {
+    display: flex; justify-content: space-between;
+    padding: 10px 12px 6px;
+}
+.ig-action-left { display: flex; gap: 14px; }
+.ig-btn { font-size: 22px; cursor: pointer; }
+.ig-likes { padding: 0 12px 6px; font-size: 13px; font-weight: 600; }
+.ig-caption-preview { padding: 0 12px 4px; line-height: 1.5; font-size: 13px; }
+.ig-hashtags-preview { padding: 0 12px 6px; font-size: 13px; line-height: 1.6; }
+.ig-time { padding: 0 12px 12px; font-size: 10px; color: #666; }
+
+/* ============ PLANNER ============ */
+.planner-day-headers {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 4px;
+}
+.planner-header-cell {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text3);
+    padding: 4px 0;
+}
+.planner-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+.planner-day {
+    min-height: 68px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 6px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    overflow: hidden;
+}
+.planner-day:hover { border-color: var(--purple); }
+.planner-blank { border-color: transparent; cursor: default; background: transparent; }
+.planner-blank:hover { border-color: transparent; }
+.planner-day-empty { background: var(--bg); }
+.planner-day-idea-only { background: rgba(124, 58, 237, 0.08); border-color: rgba(124, 58, 237, 0.3); }
+.planner-day-covered { background: rgba(124, 58, 237, 0.15); border-color: var(--purple); }
+.planner-today { box-shadow: 0 0 0 2px var(--purple); }
+.planner-day-num {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text2);
+    margin-bottom: 4px;
+}
+.planner-month-hint { font-size: 10px; color: var(--text3); font-weight: 400; }
+.planner-dot {
+    font-size: 11px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+    .studio-layout { flex-direction: column; }
+    .studio-preview-panel { width: 100%; position: static; }
+}

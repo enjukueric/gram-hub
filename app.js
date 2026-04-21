@@ -65,7 +65,8 @@ function postToDb(p) {
         caption: p.caption || null, hashtags: p.hashtags || null,
         notes: p.notes || null, scheduled_date: p.scheduledDate || null,
         scheduled_time: p.scheduledTime || null, posted_date: p.postedDate || null,
-        analytics: p.analytics || null, tagged_product: p.taggedProduct || null, created_at: p.createdAt,
+        analytics: p.analytics || null, tagged_product: p.taggedProduct || null,
+        slides: p.slides || null, created_at: p.createdAt,
     };
 }
 
@@ -75,12 +76,13 @@ function postFromDb(p) {
         caption: p.caption, hashtags: p.hashtags, notes: p.notes,
         scheduledDate: p.scheduled_date, scheduledTime: p.scheduled_time,
         postedDate: p.posted_date, analytics: p.analytics, taggedProduct: p.tagged_product,
+        slides: p.slides || [],
         createdAt: p.created_at,
     };
 }
 
 // ============ STATE ============
-let state = { posts: [], hashtagSets: [], captionTemplates: [], reminders: [], products: [] };
+let state = { posts: [], hashtagSets: [], captionTemplates: [], reminders: [], products: [], config: {} };
 let catalog = null;
 let catalogLoading = false;
 
@@ -105,18 +107,26 @@ let quoteIndex = Math.floor(Math.random() * QUOTES.length);
 let reminderInterval = null;
 
 async function loadState() {
-    const [p, h, c, r, pr] = await Promise.all([
+    const [p, h, c, r, pr, cfg] = await Promise.all([
         sb.from('gramhub_posts').select('*').order('created_at', { ascending: false }),
         sb.from('gramhub_hashtag_sets').select('*').order('created_at', { ascending: false }),
         sb.from('gramhub_caption_templates').select('*').order('created_at', { ascending: false }),
         sb.from('gramhub_reminders').select('*').order('created_at', { ascending: false }),
         sb.from('gramhub_products').select('*').order('name', { ascending: true }),
+        sb.from('gramhub_config').select('*'),
     ]);
     state.posts = (p.data || []).map(postFromDb);
     state.hashtagSets = h.data || [];
     state.captionTemplates = c.data || [];
     state.reminders = (r.data || []).map(rem => ({ ...rem, days: rem.days || [] }));
     state.products = pr.data || [];
+    state.config = Object.fromEntries((cfg.data || []).map(row => [row.key, row.value]));
+}
+
+async function saveConfig(key, value) {
+    state.config[key] = value;
+    const { error } = await sb.from('gramhub_config').upsert({ key, value });
+    if (error) showToast('Save failed — check connection');
 }
 
 function genId() {
@@ -147,6 +157,8 @@ function renderView(view) {
     else if (view === 'analytics') renderAnalytics(el);
     else if (view === 'library') renderLibrary(el);
     else if (view === 'reminders') renderReminders(el);
+    else if (view === 'studio') renderStudio(el);
+    else if (view === 'planner') renderPlanner(el);
     else if (view === 'help') renderHelp(el);
 }
 
@@ -374,7 +386,7 @@ function initDragDrop() {
             if (post && post.status !== newStatus) {
                 post.status = newStatus;
                 if (newStatus === 'posted' && !post.postedDate) post.postedDate = toDateStr(new Date());
-                sb.from('gramhub_posts').upsert(postToDb(post));
+                sb.from('gramhub_posts').upsert(postToDb(post)).then(({error}) => { if(error) showToast('Save failed — check connection'); });
                 renderView('board');
                 if (newStatus === 'posted') {
                     setTimeout(() => openAnalyticsModal(post.id), 200);
@@ -389,7 +401,7 @@ function initDragDrop() {
 
 function deletePost(id) {
     state.posts = state.posts.filter(p => p.id !== id);
-    sb.from('gramhub_posts').delete().eq('id', id);
+    sb.from('gramhub_posts').delete().eq('id', id).then(({error}) => { if(error) showToast('Delete failed — check connection'); });
     renderView(currentView);
     showToast('Post deleted');
 }
@@ -717,14 +729,14 @@ function captionCard(tmpl) {
 
 function deleteHashtag(id) {
     state.hashtagSets = state.hashtagSets.filter(s => s.id !== id);
-    sb.from('gramhub_hashtag_sets').delete().eq('id', id);
+    sb.from('gramhub_hashtag_sets').delete().eq('id', id).then(({error}) => { if(error) showToast('Delete failed — check connection'); });
     renderView('library');
     showToast('Deleted');
 }
 
 function deleteCaption(id) {
     state.captionTemplates = state.captionTemplates.filter(t => t.id !== id);
-    sb.from('gramhub_caption_templates').delete().eq('id', id);
+    sb.from('gramhub_caption_templates').delete().eq('id', id).then(({error}) => { if(error) showToast('Delete failed — check connection'); });
     renderView('library');
     showToast('Deleted');
 }
@@ -768,11 +780,11 @@ function openProductModal(id = null) {
         if (pr) {
             const existing = state.products.find(p => p.id === id);
             existing.name = name; existing.url = url; existing.sku = sku;
-            sb.from('gramhub_products').upsert({ id: existing.id, name, url, sku });
+            sb.from('gramhub_products').upsert({ id: existing.id, name, url, sku }).then(({error}) => { if(error) showToast('Save failed — check connection'); });
         } else {
             const newPr = { id: genId(), name, url, sku };
             state.products.push(newPr);
-            sb.from('gramhub_products').insert(newPr);
+            sb.from('gramhub_products').insert(newPr).then(({error}) => { if(error) showToast('Save failed — check connection'); });
         }
         closeModal();
         renderView('library');
@@ -782,7 +794,7 @@ function openProductModal(id = null) {
 
 function deleteProduct(id) {
     state.products = state.products.filter(p => p.id !== id);
-    sb.from('gramhub_products').delete().eq('id', id);
+    sb.from('gramhub_products').delete().eq('id', id).then(({error}) => { if(error) showToast('Delete failed — check connection'); });
     renderView('library');
     showToast('Product removed');
 }
@@ -859,16 +871,30 @@ window.clearProductTag = function() {
 
 // ============ REMINDERS ============
 function renderReminders(el) {
+    const emailVal = esc(state.config['notification_email'] || '');
+    const tzVal = esc(state.config['timezone'] || Intl.DateTimeFormat().resolvedOptions().timeZone);
     el.innerHTML = `
         <div class="view-header">
             <div>
                 <div class="view-title">Reminders</div>
-                <div class="view-sub">Browser notifications to keep you on schedule</div>
+                <div class="view-sub">Email notifications — works even when the tab is closed</div>
             </div>
-            <div style="display:flex;gap:8px">
-                <button class="btn btn-ghost" onclick="requestNotifPermission()">🔔 Enable Notifications</button>
-                <button class="btn btn-primary" onclick="openReminderModal()">+ New Reminder</button>
+            <button class="btn btn-primary" onclick="openReminderModal()">+ New Reminder</button>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:18px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:12px">📧 Email Notifications</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                <div class="form-group" style="margin:0;flex:1;min-width:200px">
+                    <label class="form-label">Notification Email</label>
+                    <input class="form-input" id="cfg-email" type="email" placeholder="you@example.com" value="${emailVal}">
+                </div>
+                <div class="form-group" style="margin:0;flex:1;min-width:200px">
+                    <label class="form-label">Your Timezone</label>
+                    <input class="form-input" id="cfg-tz" placeholder="America/New_York" value="${tzVal}">
+                </div>
+                <button class="btn btn-primary" style="white-space:nowrap" onclick="saveNotifConfig()">Save</button>
             </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:8px">Reminders fire via a server-side email — no need to keep the tab open. Requires the Supabase Edge Function to be deployed (see setup guide).</div>
         </div>
         <div class="reminder-list" id="reminder-list">
             ${state.reminders.length
@@ -878,6 +904,16 @@ function renderReminders(el) {
         </div>
     `;
 }
+
+window.saveNotifConfig = async function() {
+    const email = document.getElementById('cfg-email').value.trim();
+    const tz = document.getElementById('cfg-tz').value.trim();
+    if (!email) { showToast('Enter an email address'); return; }
+    if (!tz) { showToast('Enter a timezone'); return; }
+    await saveConfig('notification_email', email);
+    await saveConfig('timezone', tz);
+    showToast('Notification settings saved 📧');
+};
 
 function reminderItem(r) {
     const allDays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -901,14 +937,14 @@ function toggleReminder(id) {
     const r = state.reminders.find(r => r.id === id);
     if (r) {
         r.active = !r.active;
-        sb.from('gramhub_reminders').update({ active: r.active }).eq('id', id);
+        sb.from('gramhub_reminders').update({ active: r.active }).eq('id', id).then(({error}) => { if(error) showToast('Save failed — check connection'); });
         renderView('reminders');
     }
 }
 
 function deleteReminder(id) {
     state.reminders = state.reminders.filter(r => r.id !== id);
-    sb.from('gramhub_reminders').delete().eq('id', id);
+    sb.from('gramhub_reminders').delete().eq('id', id).then(({error}) => { if(error) showToast('Delete failed — check connection'); });
     renderView('reminders');
     showToast('Reminder deleted');
 }
@@ -1024,7 +1060,7 @@ function openPostModal(id = null, defaultStatus = 'idea', defaultDate = null) {
             state.posts.unshift(newPost);
         }
 
-        sb.from('gramhub_posts').upsert(postToDb(newPost));
+        sb.from('gramhub_posts').upsert(postToDb(newPost)).then(({error}) => { if(error) showToast('Save failed — check connection'); });
         closeModal();
         renderView(currentView);
         showToast(post ? 'Post updated' : 'Idea saved! 💡');
@@ -1086,7 +1122,7 @@ function openAnalyticsModal(id) {
         };
         state.posts[idx].postedDate = state.posts[idx].postedDate || toDateStr(new Date());
         state.posts[idx].status = 'posted';
-        sb.from('gramhub_posts').upsert(postToDb(state.posts[idx]));
+        sb.from('gramhub_posts').upsert(postToDb(state.posts[idx])).then(({error}) => { if(error) showToast('Save failed — check connection'); });
         closeModal();
         renderView(currentView);
         showToast('Stats saved 📊 Nice work!');
@@ -1122,11 +1158,11 @@ function openHashtagModal(id = null) {
         if (set) {
             const s = state.hashtagSets.find(s => s.id === id);
             s.name = name; s.hashtags = tags;
-            sb.from('gramhub_hashtag_sets').upsert({ id: s.id, name, hashtags: tags });
+            sb.from('gramhub_hashtag_sets').upsert({ id: s.id, name, hashtags: tags }).then(({error}) => { if(error) showToast('Save failed — check connection'); });
         } else {
             const newSet = { id: genId(), name, hashtags: tags };
             state.hashtagSets.push(newSet);
-            sb.from('gramhub_hashtag_sets').insert(newSet);
+            sb.from('gramhub_hashtag_sets').insert(newSet).then(({error}) => { if(error) showToast('Save failed — check connection'); });
         }
         closeModal();
         renderView('library');
@@ -1153,11 +1189,11 @@ function openCaptionModal(id = null) {
         if (tmpl) {
             const t = state.captionTemplates.find(t => t.id === id);
             t.name = name; t.content = content;
-            sb.from('gramhub_caption_templates').upsert({ id: t.id, name, content });
+            sb.from('gramhub_caption_templates').upsert({ id: t.id, name, content }).then(({error}) => { if(error) showToast('Save failed — check connection'); });
         } else {
             const newTmpl = { id: genId(), name, content };
             state.captionTemplates.push(newTmpl);
-            sb.from('gramhub_caption_templates').insert(newTmpl);
+            sb.from('gramhub_caption_templates').insert(newTmpl).then(({error}) => { if(error) showToast('Save failed — check connection'); });
         }
         closeModal();
         renderView('library');
@@ -1198,16 +1234,342 @@ function openReminderModal(id = null) {
         if (r) {
             const rem = state.reminders.find(rem => rem.id === id);
             rem.label = label; rem.time = time; rem.days = days;
-            sb.from('gramhub_reminders').upsert({ id: rem.id, label, time, days, active: rem.active });
+            sb.from('gramhub_reminders').upsert({ id: rem.id, label, time, days, active: rem.active }).then(({error}) => { if(error) showToast('Save failed — check connection'); });
         } else {
             const newRem = { id: genId(), label, time, days, active: true };
             state.reminders.push(newRem);
-            sb.from('gramhub_reminders').insert(newRem);
+            sb.from('gramhub_reminders').insert(newRem).then(({error}) => { if(error) showToast('Save failed — check connection'); });
         }
         closeModal();
         renderView('reminders');
         showToast('Reminder set 🔔');
     });
+}
+
+// ============ STUDIO ============
+let studioSlides = [];
+let studioCurrentSlide = 0;
+let studioProductImg = '';
+let studioProductDesc = '';
+
+function renderStudio(el) {
+    studioSlides = [];
+    studioCurrentSlide = 0;
+    studioProductImg = '';
+    studioProductDesc = '';
+    el.innerHTML = `
+        <div class="view-header">
+            <div>
+                <div class="view-title">Studio</div>
+                <div class="view-sub">Build your post — mock it up, then save to the board</div>
+            </div>
+        </div>
+        <div class="studio-layout">
+            <div class="studio-panel">
+                <div class="form-group">
+                    <label class="form-label">Product Search <span style="color:var(--text3);font-weight:400">(optional — auto-fills image &amp; description)</span></label>
+                    <input class="form-input" id="st-product-search" placeholder="Search by SKU or product name..." autocomplete="off"
+                        oninput="studioSearchCatalog(this.value)" onfocus="initCatalogSearch()">
+                    <div id="st-catalog-results" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;margin-top:4px;font-size:13px;position:relative;z-index:10"></div>
+                    <div id="st-product-desc" style="display:none;margin-top:8px;padding:10px;background:rgba(131,58,180,0.07);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.5"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Images</label>
+                    <div class="studio-upload-zone" id="st-drop-zone" onclick="document.getElementById('st-file-input').click()"
+                        ondragover="event.preventDefault();this.classList.add('drag-over')"
+                        ondragleave="this.classList.remove('drag-over')"
+                        ondrop="event.preventDefault();this.classList.remove('drag-over');studioHandleDrop(event)">
+                        <div style="font-size:28px;margin-bottom:6px">📷</div>
+                        <div style="font-size:13px;color:var(--text2)">Drag &amp; drop photos here, or <strong style="color:var(--purple)">click to browse</strong></div>
+                        <div style="font-size:11px;color:var(--text3);margin-top:4px">JPG, PNG, WebP — multiple OK for carousel</div>
+                        <input type="file" id="st-file-input" accept="image/*" multiple style="display:none" onchange="studioHandleFiles(this.files)">
+                    </div>
+                    <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+                        <input class="form-input" id="st-url-input" placeholder="Or paste an image URL..." style="flex:1">
+                        <button class="btn btn-ghost" onclick="studioAddUrl()">Add URL</button>
+                    </div>
+                    <div id="st-slide-strip" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Caption</label>
+                    <textarea class="form-textarea" id="st-caption" placeholder="Write your caption here..." oninput="studioUpdatePreview()" style="min-height:100px"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Hashtags</label>
+                    <textarea class="form-textarea" id="st-hashtags" placeholder="#yourhashtags #here" oninput="studioUpdatePreview()" style="min-height:60px"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label">Save as</label>
+                        <select class="form-select" id="st-status">
+                            <option value="idea">💡 Idea</option>
+                            <option value="drafting">✏️ Drafting</option>
+                            <option value="ready" selected>✅ Ready</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label">Schedule Date</label>
+                        <input class="form-input" type="date" id="st-date">
+                    </div>
+                </div>
+                <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="studioSave()">💾 Save to Board</button>
+            </div>
+
+            <div class="studio-preview-panel">
+                <div style="text-align:center;margin-bottom:12px;font-size:13px;color:var(--text3)">Live Preview</div>
+                <div class="ig-phone">
+                    <div class="ig-mockup" id="ig-mockup">
+                        <div class="ig-header">
+                            <div class="ig-avatar">E</div>
+                            <span class="ig-username">enjukuracing</span>
+                            <span class="ig-more">•••</span>
+                        </div>
+                        <div class="ig-image-wrap" id="ig-image-wrap">
+                            <div class="ig-placeholder">Add images to see preview</div>
+                        </div>
+                        <div class="ig-actions">
+                            <span class="ig-action-left">
+                                <span class="ig-btn">♡</span>
+                                <span class="ig-btn">💬</span>
+                                <span class="ig-btn">➤</span>
+                            </span>
+                            <span class="ig-btn">🔖</span>
+                        </div>
+                        <div class="ig-likes">Be the first to like this</div>
+                        <div class="ig-caption-preview" id="ig-caption-preview">
+                            <strong>enjukuracing</strong> <span id="ig-caption-text" style="color:var(--text3)">Your caption will appear here...</span>
+                        </div>
+                        <div class="ig-hashtags-preview" id="ig-hashtags-preview"></div>
+                        <div class="ig-time">Just now · <span style="color:var(--purple)">See translation</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+window.studioSearchCatalog = function(query) {
+    const results = document.getElementById('st-catalog-results');
+    if (!results) return;
+    const q = query.trim().toLowerCase();
+    if (!q || !catalog || q.length < 2) { results.style.display = 'none'; return; }
+    const matches = [];
+    for (const item of catalog) {
+        if (matches.length >= 8) break;
+        if (item.s.toLowerCase().includes(q) || item.n.toLowerCase().includes(q)) matches.push(item);
+    }
+    if (!matches.length) { results.style.display = 'none'; return; }
+    results.style.display = 'block';
+    results.innerHTML = matches.map(item => `
+        <div onclick="studioSelectProduct(${JSON.stringify(item.s)},${JSON.stringify(item.n)},${JSON.stringify(item.u)})"
+            style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border)"
+            onmouseover="this.style.background='rgba(131,58,180,0.1)'" onmouseout="this.style.background=''">
+            <span style="color:var(--purple);font-weight:600">${esc(item.s)}</span>
+            <span style="color:var(--text2);margin-left:8px">${esc(item.n)}</span>
+        </div>
+    `).join('');
+};
+
+window.studioSelectProduct = async function(sku, name, url) {
+    const searchEl = document.getElementById('st-product-search');
+    const resultsEl = document.getElementById('st-catalog-results');
+    const descEl = document.getElementById('st-product-desc');
+    if (searchEl) searchEl.value = name;
+    if (resultsEl) resultsEl.style.display = 'none';
+
+    const { data } = await sb.from('gramhub_catalog').select('img,description').eq('sku', sku).maybeSingle();
+    if (data) {
+        studioProductImg = data.img || '';
+        studioProductDesc = data.description || '';
+        if (descEl && studioProductDesc) {
+            descEl.style.display = 'block';
+            descEl.textContent = studioProductDesc;
+        }
+        if (studioProductImg && studioSlides.length === 0) {
+            studioSlides.push(studioProductImg);
+            studioCurrentSlide = 0;
+            studioRenderSlipStrip();
+            studioUpdatePreview();
+        }
+    } else {
+        showToast('No catalog details yet — run update_catalog.py to populate');
+    }
+};
+
+window.studioHandleDrop = function(event) {
+    studioHandleFiles(event.dataTransfer.files);
+};
+
+window.studioHandleFiles = async function(files) {
+    for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) continue;
+        showToast('Uploading...');
+        const url = await studioUploadImage(file);
+        if (url) {
+            studioSlides.push(url);
+            studioRenderSlipStrip();
+            studioUpdatePreview();
+            showToast('Image added 📷');
+        }
+    }
+};
+
+window.studioAddUrl = function() {
+    const el = document.getElementById('st-url-input');
+    const url = el ? el.value.trim() : '';
+    if (!url) { showToast('Enter an image URL first'); return; }
+    studioSlides.push(url);
+    el.value = '';
+    studioRenderSlipStrip();
+    studioUpdatePreview();
+};
+
+window.studioRemoveSlide = function(idx) {
+    studioSlides.splice(idx, 1);
+    if (studioCurrentSlide >= studioSlides.length) studioCurrentSlide = Math.max(0, studioSlides.length - 1);
+    studioRenderSlipStrip();
+    studioUpdatePreview();
+};
+
+window.studioSetSlide = function(idx) {
+    studioCurrentSlide = idx;
+    studioRenderSlipStrip();
+    studioUpdatePreview();
+};
+
+function studioRenderSlipStrip() {
+    const strip = document.getElementById('st-slide-strip');
+    if (!strip) return;
+    if (!studioSlides.length) { strip.innerHTML = ''; return; }
+    strip.innerHTML = studioSlides.map((url, i) => `
+        <div style="position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:2px solid ${i === studioCurrentSlide ? 'var(--purple)' : 'var(--border)'};cursor:pointer" onclick="studioSetSlide(${i})">
+            <img src="${esc(url)}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.background='var(--border)'">
+            <button onclick="event.stopPropagation();studioRemoveSlide(${i})" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.6);border:none;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>
+        </div>
+    `).join('');
+}
+
+function studioUpdatePreview() {
+    const captionEl = document.getElementById('ig-caption-text');
+    const hashEl = document.getElementById('ig-hashtags-preview');
+    const imageWrap = document.getElementById('ig-image-wrap');
+
+    const caption = (document.getElementById('st-caption')?.value || '').trim();
+    const hashtags = (document.getElementById('st-hashtags')?.value || '').trim();
+
+    if (captionEl) captionEl.textContent = caption || 'Your caption will appear here...';
+    if (hashEl) {
+        hashEl.innerHTML = hashtags
+            ? hashtags.split(/\s+/).map(t => `<span style="color:#00b4d8">${esc(t)}</span>`).join(' ')
+            : '';
+    }
+
+    if (imageWrap) {
+        if (studioSlides.length) {
+            const isCarousel = studioSlides.length > 1;
+            imageWrap.innerHTML = `
+                <img src="${esc(studioSlides[studioCurrentSlide])}" class="ig-image" onerror="this.style.background='var(--border)'">
+                ${isCarousel ? `
+                <div class="ig-carousel-dots">
+                    ${studioSlides.map((_, i) => `<span class="ig-dot ${i === studioCurrentSlide ? 'active' : ''}" onclick="studioSetSlide(${i})"></span>`).join('')}
+                </div>
+                <button class="ig-carousel-btn ig-carousel-prev" onclick="studioSetSlide(Math.max(0,studioCurrentSlide-1))" ${studioCurrentSlide === 0 ? 'disabled' : ''}>‹</button>
+                <button class="ig-carousel-btn ig-carousel-next" onclick="studioSetSlide(Math.min(studioSlides.length-1,studioCurrentSlide+1))" ${studioCurrentSlide === studioSlides.length-1 ? 'disabled' : ''}>›</button>
+                ` : ''}
+            `;
+        } else {
+            imageWrap.innerHTML = '<div class="ig-placeholder">Add images to see preview</div>';
+        }
+    }
+}
+
+async function studioUploadImage(file) {
+    const path = `studio/${Date.now()}_${file.name.replace(/[^a-z0-9._-]/gi, '_')}`;
+    const { error } = await sb.storage.from('gramhub-uploads').upload(path, file, { upsert: true });
+    if (error) { showToast('Upload failed — ' + error.message); return null; }
+    const { data: { publicUrl } } = sb.storage.from('gramhub-uploads').getPublicUrl(path);
+    return publicUrl;
+}
+
+window.studioSave = function() {
+    const caption = (document.getElementById('st-caption')?.value || '').trim();
+    const hashtags = (document.getElementById('st-hashtags')?.value || '').trim();
+    const status = document.getElementById('st-status')?.value || 'ready';
+    const date = document.getElementById('st-date')?.value || '';
+    const search = (document.getElementById('st-product-search')?.value || '').trim();
+    if (!caption && !studioSlides.length) { showToast('Add an image or caption first'); return; }
+    const type = studioSlides.length > 1 ? 'carousel' : 'photo';
+    const title = search || caption.slice(0, 60) || 'Studio post';
+    const newPost = {
+        id: genId(), title, type, status, caption, hashtags,
+        notes: '', scheduledDate: date, scheduledTime: '',
+        slides: [...studioSlides],
+        taggedProduct: studioProductImg ? { name: search, url: '' } : null,
+        analytics: null, postedDate: null,
+        createdAt: new Date().toISOString(),
+    };
+    state.posts.unshift(newPost);
+    sb.from('gramhub_posts').upsert(postToDb(newPost)).then(({error}) => { if(error) showToast('Save failed — check connection'); });
+    showToast('Saved to board ✅');
+    navigate('board');
+};
+
+// ============ PLANNER ============
+function renderPlanner(el) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const days = [];
+    for (let i = 0; i < 60; i++) {
+        const d = new Date(today); d.setDate(today.getDate() + i);
+        days.push(d);
+    }
+    const covered = days.filter(d => {
+        const ds = toDateStr(d);
+        return state.posts.some(p => p.scheduledDate === ds && p.status !== 'idea');
+    }).length;
+
+    const startDow = days[0].getDay();
+    const blanks = Array(startDow).fill(null);
+    const allCells = [...blanks, ...days];
+
+    el.innerHTML = `
+        <div class="view-header">
+            <div>
+                <div class="view-title">60-Day Planner</div>
+                <div class="view-sub">${covered} of 60 days covered — <span style="color:${covered >= 40 ? '#34c759' : covered >= 20 ? '#ff9f0a' : 'var(--danger)'}">
+                    ${covered >= 40 ? 'Great coverage' : covered >= 20 ? 'Getting there' : 'Needs filling'}</span>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="openPostModal()">+ New Post</button>
+        </div>
+        <div class="planner-day-headers">
+            ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<div class="planner-header-cell">${d}</div>`).join('')}
+        </div>
+        <div class="planner-grid">
+            ${allCells.map(d => {
+                if (!d) return '<div class="planner-day planner-blank"></div>';
+                const ds = toDateStr(d);
+                const posts = state.posts.filter(p => p.scheduledDate === ds);
+                const isToday = ds === toDateStr(today);
+                const hasCovered = posts.some(p => p.status !== 'idea');
+                const statusClass = posts.length === 0 ? 'empty' : hasCovered ? 'covered' : 'idea-only';
+                return `
+                    <div class="planner-day planner-day-${statusClass} ${isToday ? 'planner-today' : ''}" onclick="openPostModal(null,null,'${ds}')">
+                        <div class="planner-day-num">${d.getDate()}<span class="planner-month-hint">${d.getDate() === 1 ? ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()] : ''}</span></div>
+                        ${posts.slice(0, 3).map(p => `<div class="planner-dot planner-dot-${p.status}" title="${esc(p.title)}">${TYPE_ICONS[p.type] || '📝'}</div>`).join('')}
+                        ${posts.length > 3 ? `<div style="font-size:9px;color:var(--text3)">+${posts.length-3}</div>` : ''}
+                    </div>
+                `;
+            }).join('')}
+        </div>
+        <div style="margin-top:16px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text2)">
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--border);margin-right:4px"></span>Empty</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#7c3aed33;margin-right:4px"></span>Idea only</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#7c3aed;margin-right:4px"></span>Scheduled/Ready</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#34c759;margin-right:4px"></span>Posted</span>
+        </div>
+    `;
 }
 
 // ============ HELP ============

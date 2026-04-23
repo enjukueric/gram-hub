@@ -842,13 +842,11 @@ window.fillProductFromLibrary = function() {
 };
 
 window.initCatalogSearch = async function() {
-    const searchEl = document.getElementById('f-product-search');
-    if (!searchEl) return;
-    if (!catalog) {
-        searchEl.placeholder = 'Loading catalog...';
-        await loadCatalog();
-        searchEl.placeholder = 'Search by SKU or product name...';
-    }
+    if (catalog) return;
+    const searchEl = document.getElementById('f-product-search') || document.getElementById('st-product-search');
+    if (searchEl) searchEl.placeholder = 'Loading catalog...';
+    await loadCatalog();
+    if (searchEl) searchEl.placeholder = 'Search by SKU or product name...';
 };
 
 let _postMatches = [];

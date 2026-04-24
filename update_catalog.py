@@ -57,9 +57,23 @@ def find_thumbnail(row, headers_map):
         return row[i].strip() if len(row) > i else ''
     return ''
 
+def find_all_images(row, headers_map):
+    seen = set()
+    images = []
+    for n in range(1, MAX_IMG_SLOTS + 1):
+        url_key = f'Product Image URL - {n}'
+        if url_key in headers_map:
+            i = headers_map[url_key]
+            url = row[i].strip() if len(row) > i else ''
+            if url and url not in seen:
+                seen.add(url)
+                images.append(url)
+    return images
+
 def build_data(backup_path):
     catalog = []
     details = []
+    pending_parent = None  # Products with no SKU — hold until we see their variant SKU rows
     with open(backup_path, encoding='utf-8-sig') as f:
         reader = csv.reader(f)
         headers = next(reader)
@@ -74,22 +88,38 @@ def build_data(backup_path):
         for row in reader:
             if len(row) <= idx_url:
                 continue
-            if row[idx_type].strip() != 'Product':
-                continue
-            if row[idx_visible].strip() != 'Y':
-                continue
-            if row[idx_allow].strip() != 'Y':
-                continue
-            sku  = row[idx_sku].strip()
-            name = row[idx_name].strip()
-            url  = row[idx_url].strip()
-            if not sku or not url:
-                continue
-            full_url = BASE_URL + url
-            catalog.append({'s': sku, 'n': name, 'u': full_url})
-            img  = find_thumbnail(row, hmap)
-            desc = strip_html(row[idx_desc]) if idx_desc >= 0 and len(row) > idx_desc else ''
-            details.append({'sku': sku, 'name': name, 'url': full_url, 'img': img, 'description': desc})
+            item_type = row[idx_type].strip()
+            if item_type == 'Product':
+                pending_parent = None
+                if row[idx_visible].strip() != 'Y':
+                    continue
+                if row[idx_allow].strip() != 'Y':
+                    continue
+                sku  = row[idx_sku].strip()
+                name = row[idx_name].strip()
+                url  = row[idx_url].strip()
+                if not url:
+                    continue
+                full_url = BASE_URL + url
+                img    = find_thumbnail(row, hmap)
+                images = find_all_images(row, hmap)
+                desc   = strip_html(row[idx_desc]) if idx_desc >= 0 and len(row) > idx_desc else ''
+                if not sku:
+                    # Product with configurable options and no parent SKU — wait for child SKU rows
+                    pending_parent = {'name': name, 'url': full_url, 'img': img, 'images': images, 'desc': desc}
+                    continue
+                catalog.append({'s': sku, 'n': name, 'u': full_url})
+                details.append({'sku': sku, 'name': name, 'url': full_url, 'img': img, 'images': images, 'description': desc})
+            elif item_type == 'SKU' and pending_parent:
+                sku = row[idx_sku].strip()
+                if not sku:
+                    continue
+                p = pending_parent
+                catalog.append({'s': sku, 'n': p['name'], 'u': p['url']})
+                details.append({'sku': sku, 'name': p['name'], 'url': p['url'], 'img': p['img'], 'images': p['images'], 'description': p['desc']})
+            else:
+                if item_type not in ('SKU', 'Rule'):
+                    pending_parent = None
     return catalog, details
 
 def supabase_upsert(table, rows):

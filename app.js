@@ -359,6 +359,7 @@ function postCard(p) {
                 <div class="post-card-title">${esc(p.title)}</div>
                 <div class="post-card-actions">
                     <button class="post-card-btn" onclick="event.stopPropagation();openPostModal('${p.id}')" title="Edit">✏️</button>
+                    <button class="post-card-btn" onclick="event.stopPropagation();editInStudio('${p.id}')" title="Edit in Studio">🎨</button>
                     <button class="post-card-btn" onclick="event.stopPropagation();deletePost('${p.id}')" title="Delete">🗑️</button>
                 </div>
             </div>
@@ -1333,9 +1334,11 @@ let studioSlides = [];
 let studioCurrentSlide = 0;
 let studioProductImg = '';
 let studioProductDesc = '';
+let studioEditingPostId = null;
 
 function renderStudio(el) {
-    studioSlides = [];
+    const editPost = studioEditingPostId ? state.posts.find(p => p.id === studioEditingPostId) : null;
+    studioSlides = editPost ? [...(editPost.slides || [])] : [];
     studioCurrentSlide = 0;
     studioProductImg = '';
     studioProductDesc = '';
@@ -1343,8 +1346,9 @@ function renderStudio(el) {
         <div class="view-header">
             <div>
                 <div class="view-title">Studio</div>
-                <div class="view-sub">Build your post — mock it up, then save to the board</div>
+                <div class="view-sub">${editPost ? `Editing: ${esc(editPost.title)}` : 'Build your post — mock it up, then save to the board'}</div>
             </div>
+            ${editPost ? `<button class="btn btn-ghost" onclick="studioEditingPostId=null;navigate('board')">← Back to Board</button>` : ''}
         </div>
         <div class="studio-layout">
             <div class="studio-panel">
@@ -1354,6 +1358,7 @@ function renderStudio(el) {
                         oninput="studioSearchCatalog(this.value)" onfocus="initCatalogSearch()">
                     <div id="st-catalog-results" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;margin-top:4px;font-size:13px;position:relative;z-index:10"></div>
                     <div id="st-product-desc" style="display:none;margin-top:8px;padding:10px;background:rgba(131,58,180,0.07);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.5"></div>
+                    <div id="st-product-images" style="display:none;margin-top:8px"></div>
                 </div>
 
                 <div class="form-group">
@@ -1396,7 +1401,7 @@ function renderStudio(el) {
                         <input class="form-input" type="date" id="st-date">
                     </div>
                 </div>
-                <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="studioSave()">💾 Save to Board</button>
+                <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="studioSave()">${editPost ? '💾 Update Post' : '💾 Save to Board'}</button>
             </div>
 
             <div class="studio-preview-panel">
@@ -1430,6 +1435,24 @@ function renderStudio(el) {
             </div>
         </div>
     `;
+    if (editPost) {
+        const capEl = document.getElementById('st-caption');
+        const tagEl = document.getElementById('st-hashtags');
+        const dateEl = document.getElementById('st-date');
+        const statusEl = document.getElementById('st-status');
+        const searchEl = document.getElementById('st-product-search');
+        if (capEl) capEl.value = editPost.caption || '';
+        if (tagEl) tagEl.value = editPost.hashtags || '';
+        if (dateEl && editPost.scheduledDate) dateEl.value = editPost.scheduledDate;
+        if (statusEl) statusEl.value = editPost.status || 'drafting';
+        if (searchEl && editPost.taggedProduct?.name) searchEl.value = editPost.taggedProduct.name;
+    }
+    if (studioSlides.length) {
+        studioRenderSlipStrip();
+        studioUpdatePreview();
+    } else if (editPost) {
+        studioUpdatePreview();
+    }
 }
 
 let _studioMatches = [];
@@ -1468,7 +1491,7 @@ window.studioSelectProduct = async function(sku, name, url) {
     if (searchEl) searchEl.value = name;
     if (resultsEl) resultsEl.style.display = 'none';
 
-    const { data } = await sb.from('gramhub_catalog').select('img,description').eq('sku', sku).maybeSingle();
+    const { data } = await sb.from('gramhub_catalog').select('img,description,images').eq('sku', sku).maybeSingle();
     if (data) {
         studioProductImg = data.img || '';
         studioProductDesc = data.description || '';
@@ -1476,8 +1499,20 @@ window.studioSelectProduct = async function(sku, name, url) {
             descEl.style.display = 'block';
             descEl.textContent = studioProductDesc;
         }
-        if (studioProductImg && studioSlides.length === 0) {
-            studioSlides.push(studioProductImg);
+        const allImages = (data.images && data.images.length) ? data.images : (studioProductImg ? [studioProductImg] : []);
+        const imagesEl = document.getElementById('st-product-images');
+        if (allImages.length > 1 && imagesEl) {
+            imagesEl.style.display = 'block';
+            imagesEl.innerHTML = `
+                <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Click images to add to post:</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    ${allImages.map(img => `<img src="${esc(img)}" onclick="studioAddProductImage('${esc(img)}')"
+                        style="width:60px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent"
+                        onmouseover="this.style.borderColor='var(--purple)'" onmouseout="this.style.borderColor='transparent'"
+                        title="Click to add to post">`).join('')}
+                </div>`;
+        } else if (allImages.length === 1 && studioSlides.length === 0) {
+            studioSlides.push(allImages[0]);
             studioCurrentSlide = 0;
             studioRenderSlipStrip();
             studioUpdatePreview();
@@ -1485,6 +1520,20 @@ window.studioSelectProduct = async function(sku, name, url) {
     } else {
         showToast('No catalog details yet — run update_catalog.py to populate');
     }
+};
+
+window.studioAddProductImage = function(url) {
+    if (!studioSlides.includes(url)) {
+        studioSlides.push(url);
+        studioRenderSlipStrip();
+        studioUpdatePreview();
+        showToast('Image added 📷');
+    }
+};
+
+window.editInStudio = function(id) {
+    studioEditingPostId = id;
+    navigate('studio');
 };
 
 window.studioHandleDrop = function(event) {
@@ -1591,6 +1640,27 @@ window.studioSave = function() {
     if (!caption && !studioSlides.length) { showToast('Add an image or caption first'); return; }
     const type = studioSlides.length > 1 ? 'carousel' : 'photo';
     const title = search || caption.slice(0, 60) || 'Studio post';
+    if (studioEditingPostId) {
+        const idx = state.posts.findIndex(p => p.id === studioEditingPostId);
+        if (idx >= 0) {
+            const existing = state.posts[idx];
+            existing.title = title;
+            existing.type = type;
+            existing.status = status;
+            existing.caption = caption;
+            existing.hashtags = hashtags;
+            existing.scheduledDate = date;
+            existing.slides = [...studioSlides];
+            existing.taggedProduct = studioProductImg
+                ? { name: search, url: '' }
+                : (search ? existing.taggedProduct : null);
+            sb.from('gramhub_posts').upsert(postToDb(existing)).then(({error}) => { if(error) showToast('Save failed — check connection'); });
+            studioEditingPostId = null;
+            showToast('Post updated ✅');
+            navigate('board');
+            return;
+        }
+    }
     const newPost = {
         id: genId(), title, type, status, caption, hashtags,
         notes: '', scheduledDate: date, scheduledTime: '',
